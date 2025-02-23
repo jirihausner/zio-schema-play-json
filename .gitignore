@@ -1,0 +1,46 @@
+# git
+*~
+.#*
+.git
+*#
+
+# java
+.java-version
+*.class
+*.log
+
+# macOs
+*Thumbs.db*
+*.DS_Store
+
+# eclipse files
+.classpath
+.project
+.settings
+
+# intellij
+*.ipr
+*.iws
+*.iml
+*.idea
+workspace.xml
+atlassian-ide-plugin.xml
+
+# vscode
+.vscode
+.history
+
+# sbt
+.bsp
+target
+
+# bloop
+.bloop
+bloop.settings
+
+# metals
+.metals
+metals.sbt
+
+# scala-cli
+.scala-build
