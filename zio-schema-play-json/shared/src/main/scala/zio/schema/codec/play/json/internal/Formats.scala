@@ -809,7 +809,7 @@ private[play] trait Formats {
           if (fieldWithReads != null) {
             val (field, reads) = fieldWithReads
             reads.reads(value) match {
-              case error: JsError      => errors ++= error.errors
+              case error: JsError      => errors ++= error.repath(JsPath \ key).asInstanceOf[JsError].errors
               case JsSuccess(value, _) =>
                 val prev = map.put(field, value)
                 if (prev != null)
@@ -849,8 +849,8 @@ private[play] trait Formats {
           }
           i += 1
         }
-
-        if (errors.nonEmpty) JsError(errors.result().groupMapReduce(_._1)(_._2) { case (a, b) => a ++ b }.toSeq)
+        if (errors.nonEmpty)
+          JsError(errors.result().groupBy(_._1).iterator.map { case (k, v) => k -> v.flatMap(_._2) }.toList)
         else {
           val builder =
             ListMap.newBuilder[String, Any] ++= ({ // to avoid O(n) insert operations
@@ -1268,10 +1268,7 @@ private[play] trait Formats {
               if (buffer(i) != null) errors += JsPath \ key -> Seq(JsonValidationError("error.path.result.multiple"))
               else
                 readers(i).reads(value) match {
-                  case error: JsError      =>
-                    errors ++= error.errors.map { case (path, errors) =>
-                      JsPath(KeyPathNode(key) +: path.path) -> errors
-                    }
+                  case error: JsError      => errors ++= error.repath(JsPath \ key).asInstanceOf[JsError].errors
                   case JsSuccess(value, _) => buffer(i) = value
                 }
           }
@@ -1300,7 +1297,8 @@ private[play] trait Formats {
           i += 1
         }
 
-        if (errors.nonEmpty) JsError(errors.result().groupMapReduce(_._1)(_._2) { case (a, b) => a ++ b }.toSeq)
+        if (errors.nonEmpty)
+          JsError(errors.result().groupBy(_._1).iterator.map { case (k, v) => k -> v.flatMap(_._2) }.toList)
         else JsSuccess(buffer)
 
       case _ => JsError(JsPath, JsonValidationError("error.expected.jsobject"))

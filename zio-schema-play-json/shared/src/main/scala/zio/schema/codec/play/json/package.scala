@@ -41,7 +41,7 @@ package object json {
           case StandardType.ShortType          => JsNumber(value.asInstanceOf[Short].toInt)
           case StandardType.IntType            => JsNumber(value.asInstanceOf[Int])
           case StandardType.LongType           => JsNumber(value.asInstanceOf[Long])
-          case StandardType.FloatType          => JsNumber(value.asInstanceOf[Float])
+          case StandardType.FloatType          => JsNumber(value.asInstanceOf[Float].toDouble)
           case StandardType.DoubleType         => JsNumber(value.asInstanceOf[Double])
           case StandardType.BinaryType         =>
             JsString(Base64.getEncoder.encodeToString(value.asInstanceOf[Chunk[Byte]].toArray))
@@ -112,7 +112,7 @@ package object json {
           case StandardType.ShortType          => JsNumber(value.asInstanceOf[Short].toInt)
           case StandardType.IntType            => JsNumber(value.asInstanceOf[Int])
           case StandardType.LongType           => JsNumber(value.asInstanceOf[Long])
-          case StandardType.FloatType          => JsNumber(value.asInstanceOf[Float])
+          case StandardType.FloatType          => JsNumber(value.asInstanceOf[Float].toDouble)
           case StandardType.DoubleType         => JsNumber(value.asInstanceOf[Double])
           case StandardType.BinaryType         =>
             JsString(Base64.getEncoder.encodeToString(value.asInstanceOf[Chunk[Byte]].toArray))

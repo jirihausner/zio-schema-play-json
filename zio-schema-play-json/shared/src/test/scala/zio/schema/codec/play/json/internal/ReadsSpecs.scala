@@ -45,6 +45,34 @@ private[play] trait ReadsSpecs {
     assertZIO(stream)(fails(equalTo(ReadError(Cause.fail(exception), exception.getMessage))))
   }
 
+  final protected def assertReadsToOneOfErrors[A](
+    schema: Schema[A],
+    json: CharSequence,
+    errors: Seq[JsError],
+    config: Config = DefaultConfig,
+    debug: Boolean = false,
+  ): ZIO[Any, Nothing, TestResult] = {
+    val exceptions = errors.map { error =>
+      val exception = JsResult.Exception(error)
+      ReadError(Cause.fail(exception), exception.getMessage)
+    }
+    val stream     = ZStream
+      .fromChunk(charSequenceToByteChunk(json))
+      .via(BinaryCodec(schema, config).streamDecoder)
+      .runHead
+      .exit
+      .tap { exit =>
+        ZIO
+          .when(debug) {
+            Console.print("expected one of:") *>
+              ZIO.foreach(exceptions)(exception => Console.printLine(zio.Exit.Failure(Cause.fail(exception)))) *>
+              Console.printLine(s"got: $exit")
+          }
+          .ignore
+      }
+    assertZIO(stream)(fails(isOneOf(exceptions)))
+  }
+
   final protected def assertReads[A](
     schema: Schema[A],
     json: CharSequence,
@@ -795,16 +823,25 @@ private[play] trait ReadsSpecs {
         )
       },
       test("case class with complex option field rejects empty json object as value") {
-        assertReadsToError(
+        assertReadsToOneOfErrors(
           WithComplexOptionField.schema,
           """{"order":{}}""",
-          JsError(
-            scala.collection.Seq(
-              JsPath \ "order" \ "value"       -> Seq(JsonValidationError("error.path.missing")),
-              JsPath \ "order" \ "orderId"     -> Seq(JsonValidationError("error.path.missing")),
-              JsPath \ "order" \ "description" -> Seq(JsonValidationError("error.path.missing")),
+          Seq(
+            JsError(
+              scala.collection.Seq(
+                JsPath \ "order" \ "value"       -> Seq(JsonValidationError("error.path.missing")),
+                JsPath \ "order" \ "orderId"     -> Seq(JsonValidationError("error.path.missing")),
+                JsPath \ "order" \ "description" -> Seq(JsonValidationError("error.path.missing")),
+              ),
             ),
-          ), // FIXME: error order is not deterministic
+            JsError(
+              scala.collection.Seq(
+                JsPath \ "order" \ "orderId"     -> Seq(JsonValidationError("error.path.missing")),
+                JsPath \ "order" \ "value"       -> Seq(JsonValidationError("error.path.missing")),
+                JsPath \ "order" \ "description" -> Seq(JsonValidationError("error.path.missing")),
+              ),
+            ),
+          ),
         )
       },
       test("case class with complex option field correctly reads") {
