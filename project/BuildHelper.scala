@@ -9,12 +9,12 @@ import sbtbuildinfo.BuildInfoKeys._
 import sbtcrossproject.CrossPlugin.autoImport._
 import sbtdynver.DynVerPlugin.autoImport.previousStableVersion
 import scalafix.sbt.ScalafixPlugin.autoImport._
-// import scalanativecrossproject.NativePlatform
+import scalanativecrossproject.NativePlatform
 
 import java.util.{List => JList, Map => JMap}
 import scala.jdk.CollectionConverters._
-// import scala.scalanative.build.{GC, Mode}
-// import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
+import scala.scalanative.build.{GC, Mode}
+import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
 object BuildHelper {
 
@@ -32,7 +32,7 @@ object BuildHelper {
 
   object Versions {
 
-    val playJson      = "3.0.4"
+    val playJson      = "3.1.0-M1"
     val scalaJavaTime = "2.6.0"
     val zio           = "2.1.15"
     val zioSchema     = "1.6.1"
@@ -147,17 +147,17 @@ object BuildHelper {
         baseDirectory.value,
       )
     },
-    // nativeConfig ~= { cfg =>
-    //   val os = System.getProperty("os.name").toLowerCase
-    //   // For some unknown reason, we can't run the test suites in debug mode on MacOS
-    //   if (os.contains("mac")) cfg.withMode(Mode.releaseFast)
-    //   else cfg.withGC(GC.boehm) // See https://github.com/scala-native/scala-native/issues/4032
-    // },
-    // scalacOptions += {
-    //   if (crossProjectPlatform.value == NativePlatform)
-    //     "-P:scalanative:genStaticForwardersForNonTopLevelObjects"
-    //   else ""
-    // },
+    nativeConfig ~= { cfg =>
+      val os = System.getProperty("os.name").toLowerCase
+      // For some unknown reason, we can't run the test suites in debug mode on MacOS
+      if (os.contains("mac")) cfg.withMode(Mode.releaseFast)
+      else cfg.withGC(GC.boehm) // See https://github.com/scala-native/scala-native/issues/4032
+    },
+    scalacOptions += {
+      if (crossProjectPlatform.value == NativePlatform)
+        "-P:scalanative:genStaticForwardersForNonTopLevelObjects"
+      else ""
+    },
     Test / fork := crossProjectPlatform.value == JVMPlatform, // set fork to `true` on JVM to improve log readability, JS and Native need `false`
   )
 

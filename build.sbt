@@ -41,7 +41,7 @@ addCommandAlias("lint", "fmtCheck; fixCheck")
 
 addCommandAlias("testJVM", "zioSchemaPlayJsonJVM/test")
 addCommandAlias("testJS", "zioSchemaPlayJsonJS/test")
-// addCommandAlias("testNative", "zioSchemaPlayJsonNative/test")
+addCommandAlias("testNative", "zioSchemaPlayJsonNative/test")
 
 addCommandAlias("mimaCheck", "+zioSchemaPlayJson/mimaReportBinaryIssues")
 
@@ -55,11 +55,11 @@ lazy val root = project
   .aggregate(
     zioSchemaPlayJson.jvm,
     zioSchemaPlayJson.js,
-    // zioSchemaPlayJson.native,
+    zioSchemaPlayJson.native,
   )
 
 lazy val zioSchemaPlayJson =
-  crossProject(JSPlatform, JVMPlatform /*, NativePlatform*/ )
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .in(file("zio-schema-play-json"))
     .enablePlugins(BuildInfoPlugin)
     .settings(stdSettings("zio-schema-play-json"))
@@ -80,11 +80,11 @@ lazy val zioSchemaPlayJson =
     .settings(macroDefinitionSettings)
     .settings(crossProjectSettings)
     .settings(Test / fork := crossProjectPlatform.value == JVMPlatform)
-    // .nativeSettings(
-    //   libraryDependencies ++= Seq(
-    //     "io.github.cquiroz" %%% "scala-java-time" % Versions.scalaJavaTime,
-    //   ),
-    // )
+    .nativeSettings(
+      libraryDependencies ++= Seq(
+        "io.github.cquiroz" %%% "scala-java-time" % Versions.scalaJavaTime,
+      ),
+    )
     .jsSettings(
       libraryDependencies ++= Seq(
         "io.github.cquiroz" %%% "scala-java-time"      % Versions.scalaJavaTime,
