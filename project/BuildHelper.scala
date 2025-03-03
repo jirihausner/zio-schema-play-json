@@ -213,7 +213,6 @@ object BuildHelper {
       testJVM                       := Def.taskDyn {
         val currentScalaVersion  = (ThisBuild / scalaVersion).value
         val projectScalaVersions = (ThisBuild / crossScalaVersions).value
-        Keys.streams.value.log.warn(s"Scala $currentScalaVersion")
         if (projectScalaVersions.contains(currentScalaVersion)) Test / test
         else {
           Keys.streams.value.log.warn(s"Skipping ${name.value}, Scala $currentScalaVersion is not supported!")
