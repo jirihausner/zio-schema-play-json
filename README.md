@@ -12,11 +12,16 @@
 
 ## Installation
 
-In order to use this library, we need to add following line in your `build.sbt` file:
+In order to use this library, we need to add one of the following lines in your `build.sbt` file:
 
 ```scala
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json" % "0.1.0"
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json"     % "0.1.0" // play-json 3.0.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-210" % "0.1.0" // play-json 2.10.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-27"  % "0.1.0" // play-json 2.7.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-26"  % "0.1.0" // play-json 2.6.+
 ```
+
+`zio-schema-play-json` also publishes artifacts for ScalaJS.
 
 ## Example
 
