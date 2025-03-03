@@ -39,10 +39,6 @@ addCommandAlias("fixCheck", "scalafixAll --check")
 addCommandAlias("prepare", "fmt; fix")
 addCommandAlias("lint", "fmtCheck; fixCheck")
 
-addCommandAlias("testJVM", "zioSchemaPlayJsonJVM/test")
-addCommandAlias("testJS", "zioSchemaPlayJsonJS/test")
-// addCommandAlias("testNative", "zioSchemaPlayJsonNative/test")
-
 addCommandAlias("mimaCheck", "+zioSchemaPlayJson/mimaReportBinaryIssues")
 
 lazy val root = project
@@ -51,20 +47,31 @@ lazy val root = project
     name                  := "zio-schema-play-json",
     publish / skip        := true,
     mimaPreviousArtifacts := Set.empty,
+    testJVM               := {},
+    testJS                := {},
   )
   .aggregate(
-    zioSchemaPlayJson.jvm,
-    zioSchemaPlayJson.js,
-    // zioSchemaPlayJson.native,
+    zioSchemaPlayJsonJVM,
+    zioSchemaPlayJsonJS,
+    zioSchemaPlayJson210,
+    zioSchemaPlayJson27,
+    zioSchemaPlayJson26,
   )
 
 lazy val zioSchemaPlayJson =
-  crossProject(JSPlatform, JVMPlatform /*, NativePlatform*/ )
+  crossProject(JSPlatform, JVMPlatform)
     .in(file("zio-schema-play-json"))
     .enablePlugins(BuildInfoPlugin)
     .settings(stdSettings("zio-schema-play-json"))
     .settings(buildInfoSettings("zio.schema.codec.play.json"))
     .settings(mimaSettings(binCompatVersionToCompare, failOnProblem = true))
+    .settings(
+      Compile / unmanagedSources += {
+        val file = (Compile / sourceManaged).value / "PlayJsonCompat.scala"
+        IO.write(file, "package zio.schema.codec.play.json.internal\nprivate[play] trait PlayJsonCompat {}")
+        file
+      },
+    )
     .settings(
       libraryDependencies ++= Seq(
         "org.playframework" %%% "play-json"             % Versions.playJson,
@@ -80,11 +87,6 @@ lazy val zioSchemaPlayJson =
     .settings(macroDefinitionSettings)
     .settings(crossProjectSettings)
     .settings(Test / fork := crossProjectPlatform.value == JVMPlatform)
-    // .nativeSettings(
-    //   libraryDependencies ++= Seq(
-    //     "io.github.cquiroz" %%% "scala-java-time" % Versions.scalaJavaTime,
-    //   ),
-    // )
     .jsSettings(
       libraryDependencies ++= Seq(
         "io.github.cquiroz" %%% "scala-java-time"      % Versions.scalaJavaTime,
@@ -95,3 +97,85 @@ lazy val zioSchemaPlayJson =
       scalaJSLinkerConfig ~= { _.withOptimizer(false) },
       scalaJSUseMainModuleInitializer := true,
     )
+
+lazy val zioSchemaPlayJsonJVM = zioSchemaPlayJson.jvm
+  .settings(
+    testJVM := (Test / test).value,
+    testJS  := {},// disable testing JS
+  )
+
+lazy val zioSchemaPlayJsonJS = zioSchemaPlayJson.js
+  .settings(
+    testJVM := {}, // disable testing JVM
+    testJS  := (Test / test).value,
+  )
+
+lazy val zioSchemaPlayJson210 =
+  project
+    .in(file("zio-schema-play-json-210"))
+    .settings(stdSettings("zio-schema-play-json-210"))
+    .settings(
+      Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "main" / "scala",
+      Test / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "test" / "scala",
+    )
+    .settings(
+      libraryDependencies ++= Seq(
+        "com.typesafe.play" %% "play-json"             % Versions.playJson210,
+        "dev.zio"           %% "zio"                   % Versions.zio,
+        "dev.zio"           %% "zio-test"              % Versions.zio       % Test,
+        "dev.zio"           %% "zio-test-sbt"          % Versions.zio       % Test,
+        "dev.zio"           %% "zio-streams"           % Versions.zio,
+        "dev.zio"           %% "zio-schema"            % Versions.zioSchema,
+        "dev.zio"           %% "zio-schema-derivation" % Versions.zioSchema % Test,
+        "dev.zio"           %% "zio-schema-zio-test"   % Versions.zioSchema % Test,
+      ),
+    )
+    .settings(macroDefinitionSettings)
+    .settings(Test / fork := true)
+
+lazy val zioSchemaPlayJson27 =
+  project
+    .in(file("zio-schema-play-json-27"))
+    .settings(stdSettings("zio-schema-play-json-27", scalaVersions = Seq(Scala213, Scala212)))
+    .settings(
+      Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "main" / "scala",
+      Test / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "test" / "scala",
+    )
+    .settings(
+      libraryDependencies ++= Seq(
+        "com.typesafe.play" %% "play-json"             % Versions.playJson27,
+        "dev.zio"           %% "zio"                   % Versions.zio,
+        "dev.zio"           %% "zio-test"              % Versions.zio       % Test,
+        "dev.zio"           %% "zio-test-sbt"          % Versions.zio       % Test,
+        "dev.zio"           %% "zio-streams"           % Versions.zio,
+        "dev.zio"           %% "zio-schema"            % Versions.zioSchema,
+        "dev.zio"           %% "zio-schema-derivation" % Versions.zioSchema % Test,
+        "dev.zio"           %% "zio-schema-zio-test"   % Versions.zioSchema % Test,
+      ),
+    )
+    .settings(macroDefinitionSettings)
+    .settings(Test / fork := true)
+
+lazy val zioSchemaPlayJson26 =
+  project
+    .in(file("zio-schema-play-json-26"))
+    .settings(stdSettings("zio-schema-play-json-26", scalaVersions = Seq(Scala212)))
+    .settings(
+      Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "main" / "scala",
+      Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json-27" / "src" / "main" / "scala-2.12",
+      Test / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "test" / "scala",
+    )
+    .settings(
+      libraryDependencies ++= Seq(
+        "com.typesafe.play" %% "play-json"             % Versions.playJson26,
+        "dev.zio"           %% "zio"                   % Versions.zio,
+        "dev.zio"           %% "zio-test"              % Versions.zio       % Test,
+        "dev.zio"           %% "zio-test-sbt"          % Versions.zio       % Test,
+        "dev.zio"           %% "zio-streams"           % Versions.zio,
+        "dev.zio"           %% "zio-schema"            % Versions.zioSchema,
+        "dev.zio"           %% "zio-schema-derivation" % Versions.zioSchema % Test,
+        "dev.zio"           %% "zio-schema-zio-test"   % Versions.zioSchema % Test,
+      ),
+    )
+    .settings(macroDefinitionSettings)
+    .settings(Test / fork := true)

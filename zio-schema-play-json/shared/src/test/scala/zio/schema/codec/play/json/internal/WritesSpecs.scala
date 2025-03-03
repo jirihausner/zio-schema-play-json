@@ -103,12 +103,12 @@ private[play] trait WritesSpecs {
       },
       test("Float") {
         check(Gen.float) { float =>
-          assertWrites(Schema.Primitive(StandardType.FloatType), float, float.toString)
+          assertWrites(Schema.Primitive(StandardType.FloatType), float, BigDecimal.decimal(float).toString)
         }
       },
       test("Double") {
         check(Gen.double) { double =>
-          assertWrites(Schema.Primitive(StandardType.DoubleType), double, BigDecimal(double).toString)
+          assertWrites(Schema.Primitive(StandardType.DoubleType), double, BigDecimal.decimal(double).toString)
         }
       },
       test("Binary") {

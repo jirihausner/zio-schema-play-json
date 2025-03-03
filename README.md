@@ -20,7 +20,34 @@ libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json" % "0.1.
 
 ## Example
 
-TODO
+```scala
+import play.api.libs.json.Format
+import zio.schema.codec.play.json.PlayJsonCodec
+import zio.schema.{DeriveSchema, Schema}
+
+case class Person(name: String, age: Int)
+
+object Person {
+  implicit val schema: Schema[Person] = DeriveSchema.gen
+}
+
+// derive Play JSON format from Schema
+import play.api.libs.json.Json
+implicit val codec: Format[Person] = PlayJsonCodec.schemaFormat(Person.schema)
+
+Json.parse("""{"name": "John", "age": 30}""").as[Person] // Person("John", 30)
+Json.stringify(Json.toJson(Person("Adam", 24))) // {"Adam": 24}
+
+// use existing Play JSON format as BinaryCodec
+import zio.schema.codec.play.json.PlayJsonCodec.playJsonBinaryCodec
+
+playJsonBinaryCodec[Person](Json.format[Person]) // zio.schema.codec.BinaryCodec[Person]
+
+// derive Play JSON BinaryCodec from schema
+import zio.schema.codec.play.json.PlayJsonCodec.schemaBasedBinaryCodec
+
+schemaBasedBinaryCodec[Person](PlayJsonCodec.Config.default) // zio.schema.codec.BinaryCodec[Person]
+```
 
 ## Acknowledgements
 

@@ -9,12 +9,9 @@ import sbtbuildinfo.BuildInfoKeys._
 import sbtcrossproject.CrossPlugin.autoImport._
 import sbtdynver.DynVerPlugin.autoImport.previousStableVersion
 import scalafix.sbt.ScalafixPlugin.autoImport._
-// import scalanativecrossproject.NativePlatform
 
 import java.util.{List => JList, Map => JMap}
 import scala.jdk.CollectionConverters._
-// import scala.scalanative.build.{GC, Mode}
-// import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
 object BuildHelper {
 
@@ -33,6 +30,9 @@ object BuildHelper {
   object Versions {
 
     val playJson      = "3.0.4"
+    val playJson210   = "2.10.6"
+    val playJson27    = "2.7.4"
+    val playJson26    = "2.6.14"
     val scalaJavaTime = "2.6.0"
     val zio           = "2.1.15"
     val zioSchema     = "1.6.1"
@@ -101,6 +101,7 @@ object BuildHelper {
           "-Ywarn-nullary-override",
           "-Ywarn-nullary-unit",
           "-Wconf:cat=unused-nowarn:s",
+          "-Ywarn-unused-import",
         ) ++ std2xOptions ++ optimizerOptions
       case _             => Seq.empty
     }
@@ -147,17 +148,6 @@ object BuildHelper {
         baseDirectory.value,
       )
     },
-    // nativeConfig ~= { cfg =>
-    //   val os = System.getProperty("os.name").toLowerCase
-    //   // For some unknown reason, we can't run the test suites in debug mode on MacOS
-    //   if (os.contains("mac")) cfg.withMode(Mode.releaseFast)
-    //   else cfg.withGC(GC.boehm) // See https://github.com/scala-native/scala-native/issues/4032
-    // },
-    // scalacOptions += {
-    //   if (crossProjectPlatform.value == NativePlatform)
-    //     "-P:scalanative:genStaticForwardersForNonTopLevelObjects"
-    //   else ""
-    // },
     Test / fork := crossProjectPlatform.value == JVMPlatform, // set fork to `true` on JVM to improve log readability, JS and Native need `false`
   )
 
@@ -178,11 +168,14 @@ object BuildHelper {
     buildInfoPackage := packageName,
   )
 
-  def stdSettings(projectName: String) =
+  lazy val testJVM = taskKey[Unit]("Runs JVM tests for applicable subprojects")
+  lazy val testJS  = taskKey[Unit]("Runs JS tests for applicable subprojects")
+
+  def stdSettings(projectName: String, scalaVersions: Seq[String] = Seq(Scala213, Scala212, Scala3)) =
     Seq(
       name                          := s"$projectName",
-      crossScalaVersions            := Seq(Scala213, Scala212, Scala3),
-      ThisBuild / scalaVersion      := Scala213,
+      crossScalaVersions            := scalaVersions,
+      ThisBuild / scalaVersion      := scalaVersions.head,
       scalacOptions ++= compilerOptions(scalaVersion.value, optimize = !isSnapshot.value),
       libraryDependencies ++= {
         CrossVersion.partialVersion(scalaVersion.value) match {
@@ -204,7 +197,7 @@ object BuildHelper {
         }
       },
       ThisBuild / semanticdbEnabled := scalaVersion.value != Scala3,
-      ThisBuild / semanticdbOptions += "-P:semanticdb:synthetics:on",
+      // ThisBuild / semanticdbOptions += "-P:semanticdb:synthetics:on",
       ThisBuild / semanticdbVersion := scalafixSemanticdb.revision,
       ThisBuild / scalafixDependencies ++= List(
         "com.github.vovapolu"                      %% "scaluzzi" % "0.1.23",
@@ -217,6 +210,17 @@ object BuildHelper {
       mimaPreviousArtifacts         := previousStableVersion.value.map(organization.value %% name.value % _).toSet,
       mimaCheckDirection            := "backward",
       mimaFailOnProblem             := true,
+      testJVM                       := Def.taskDyn {
+        val currentScalaVersion  = (ThisBuild / scalaVersion).value
+        val projectScalaVersions = (ThisBuild / crossScalaVersions).value
+        Keys.streams.value.log.warn(s"Scala $currentScalaVersion")
+        if (projectScalaVersions.contains(currentScalaVersion)) Test / test
+        else {
+          Keys.streams.value.log.warn(s"Skipping ${name.value}, Scala $currentScalaVersion is not supported!")
+          Def.task {}
+        }
+      }.value,
+      testJS                        := {},
     )
 
   def mimaSettings(binCompatVersionToCompare: Option[String], failOnProblem: Boolean): Seq[Def.Setting[?]] =

@@ -35,7 +35,7 @@ jobs:
       matrix:
         java: ['temurin:11', 'temurin:17', 'temurin:21']
         scala: ['2.12.20', '2.13.16', '3.5.2']
-        platform: ['JVM', 'Native', 'JS']
+        platform: ['JVM', 'JS']
     steps:
     - uses: actions/checkout@v4
       with:
@@ -46,9 +46,6 @@ jobs:
         jvm: ${{ matrix.java }}
     - name: Cache scala dependencies
       uses: coursier/cache-action@v6
-    - name: Install Bohem GC
-      if: matrix.platform == 'Native'
-      run: sudo apt-get update && sudo apt-get install -y libgc-dev
     - name: Run tests
       run: sbt ++${{ matrix.scala }}! test${{ matrix.platform }}
   mima_check:

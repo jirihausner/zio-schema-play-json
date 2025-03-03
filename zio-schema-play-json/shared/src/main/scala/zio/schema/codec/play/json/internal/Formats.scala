@@ -18,7 +18,7 @@ import scala.collection.mutable
 
 private[play] object Formats extends Formats
 
-private[play] trait Formats {
+private[play] trait Formats extends PlayJsonCompat {
 
   private val EmptyJsonObj: JsObject = JsObject.empty
 
@@ -67,8 +67,12 @@ private[play] trait Formats {
     }
   }
 
+  val writesFloat: Writes[Float] = new Writes[Float] {
+    def writes(o: Float): JsValue = JsNumber(BigDecimal.decimal(o))
+  }
+
   val writesDouble: Writes[Double] = new Writes[Double] {
-    def writes(o: Double): JsValue = JsNumber(BigDecimal(o))
+    def writes(o: Double): JsValue = JsNumber(BigDecimal.decimal(o))
   }
 
   val readsUUID: Reads[UUID] = new Reads.UUIDReader(true)
@@ -108,11 +112,16 @@ private[play] trait Formats {
     }
   }
 
-  val readsCurrency: Reads[java.util.Currency] = Reads.StringReads.flatMapResult { str =>
-    try {
-      JsSuccess(java.util.Currency.getInstance(str))
-    } catch {
-      case _: Throwable => JsError(s"error.expected.validcurrency")
+  val readsCurrency: Reads[java.util.Currency] = new Reads[java.util.Currency] {
+    def reads(json: JsValue): JsResult[java.util.Currency] = json match {
+      case JsString(str) =>
+        try {
+          JsSuccess(java.util.Currency.getInstance(str))
+        } catch {
+          case _: Throwable => JsError(s"error.expected.validcurrency")
+        }
+      case _             =>
+        JsError(s"error.expected.jstring")
     }
   }
 
@@ -194,7 +203,7 @@ private[play] trait Formats {
     case StandardType.ShortType          => Writes.ShortWrites
     case StandardType.IntType            => Writes.IntWrites
     case StandardType.LongType           => Writes.LongWrites
-    case StandardType.FloatType          => Writes.FloatWrites
+    case StandardType.FloatType          => writesFloat
     case StandardType.DoubleType         => writesDouble
     case StandardType.BinaryType         => writesChunk(Writes.ByteWrites)
     case StandardType.CharType           => writesChar
@@ -397,17 +406,70 @@ private[play] trait Formats {
     case _ => throw new Exception(s"Missing a handler for decoding of schema ${schema.toString()}.")
   }
 
-  val writesStringKey: KeyWrites[String]   = KeyWrites[String](identity)
-  val writesBooleanKey: KeyWrites[Boolean] = KeyWrites.anyValKeyWrites
-  val writesByteKey: KeyWrites[Byte]       = KeyWrites.anyValKeyWrites
-  val writesShortKey: KeyWrites[Short]     = KeyWrites.anyValKeyWrites
-  val writesIntKey: KeyWrites[Int]         = KeyWrites.anyValKeyWrites
-  val writesLongKey: KeyWrites[Long]       = KeyWrites.anyValKeyWrites
-  val readsStringKey: KeyReads[String]     =
+  val writesStringKey: KeyWrites[String] =
+    new KeyWrites[String] { def writeKey(key: String): String = key }
+  val readsStringKey: KeyReads[String]   =
     new KeyReads[String] { def readKey(key: String): JsResult[String] = JsSuccess(key) }
+
+  val writesCharKey: KeyWrites[Char] = KeyWrites.anyValKeyWrites
+  val readsCharKey: KeyReads[Char]   = new KeyReads[Char] {
+    def readKey(key: String): JsResult[Char] = key.toList match {
+      case ch :: Nil => JsSuccess(ch)
+      case _         => JsError("error.expected.character")
+    }
+  }
+
+  val writesBooleanKey: KeyWrites[Boolean] = KeyWrites.anyValKeyWrites
+  val readsBooleanKey: KeyReads[Boolean]   = new KeyReads[Boolean] {
+    def readKey(key: String): JsResult[Boolean] = key match {
+      case "true"  => JsSuccess(true)
+      case "false" => JsSuccess(false)
+      case _       => JsError("error.expected.boolean")
+    }
+  }
+
+  val writesByteKey: KeyWrites[Byte] = KeyWrites.anyValKeyWrites
+  val readsByteKey: KeyReads[Byte]   = readsCharKey.map(_.toByte)
+
+  val writesShortKey: KeyWrites[Short] = KeyWrites.anyValKeyWrites
+  val readsShortKey: KeyReads[Short]   = new KeyReads[Short] {
+    def readKey(key: String): JsResult[Short] = {
+      try {
+        val short = key.toShort
+        JsSuccess(short)
+      } catch {
+        case _: NumberFormatException => JsError("error.expected.short")
+      }
+    }
+  }
+
+  val writesIntKey: KeyWrites[Int] = KeyWrites.anyValKeyWrites
+  val readsIntKey: KeyReads[Int]   = new KeyReads[Int] {
+    def readKey(key: String): JsResult[Int] = {
+      try {
+        val int = key.toInt
+        JsSuccess(int)
+      } catch {
+        case _: NumberFormatException => JsError("error.expected.int")
+      }
+    }
+  }
+
+  val writesLongKey: KeyWrites[Long] = KeyWrites.anyValKeyWrites
+  val readsLongKey: KeyReads[Long]   = new KeyReads[Long] {
+    def readKey(key: String): JsResult[Long] = {
+      try {
+        val long = key.toLong
+        JsSuccess(long)
+      } catch {
+        case _: NumberFormatException => JsError("error.expected.long")
+      }
+    }
+  }
 
   def writesField[B](schema: Schema[B]): Option[KeyWrites[B]] = schema match {
     case Schema.Primitive(StandardType.StringType, _) => Some(writesStringKey)
+    case Schema.Primitive(StandardType.CharType, _)   => Some(writesCharKey)
     case Schema.Primitive(StandardType.BoolType, _)   => Some(writesBooleanKey)
     case Schema.Primitive(StandardType.ByteType, _)   => Some(writesByteKey)
     case Schema.Primitive(StandardType.ShortType, _)  => Some(writesShortKey)
@@ -428,11 +490,12 @@ private[play] trait Formats {
 
   def readsField[A](schema: Schema[A]): Option[KeyReads[A]] = schema match {
     case Schema.Primitive(StandardType.StringType, _) => Some(readsStringKey)
-    case Schema.Primitive(StandardType.BoolType, _)   => Some(KeyReads.booleanKeyReads)
-    case Schema.Primitive(StandardType.ByteType, _)   => Some(KeyReads.byteKeyReads)
-    case Schema.Primitive(StandardType.ShortType, _)  => Some(KeyReads.shortKeyReads)
-    case Schema.Primitive(StandardType.IntType, _)    => Some(KeyReads.intKeyReads)
-    case Schema.Primitive(StandardType.LongType, _)   => Some(KeyReads.longKeyReads)
+    case Schema.Primitive(StandardType.CharType, _)   => Some(readsCharKey)
+    case Schema.Primitive(StandardType.BoolType, _)   => Some(readsBooleanKey)
+    case Schema.Primitive(StandardType.ByteType, _)   => Some(readsByteKey)
+    case Schema.Primitive(StandardType.ShortType, _)  => Some(readsShortKey)
+    case Schema.Primitive(StandardType.IntType, _)    => Some(readsIntKey)
+    case Schema.Primitive(StandardType.LongType, _)   => Some(readsLongKey)
     case Schema.Transform(c, f, _, a, _)              =>
       readsField(a.foldLeft(c)((s, a) => s.annotate(a))).map { reads =>
         reads.map { key =>
@@ -451,15 +514,21 @@ private[play] trait Formats {
     vs: Schema[V],
     config: PlayJsonCodec.Config,
   ): Writes[Map[K, V]] = writesField(ks) match {
-    case Some(keyWrites) => Writes.keyMapWrites(keyWrites, writesSchema(vs, config))
+    case Some(keyWrites) =>
+      implicit val kw: KeyWrites[K] = keyWrites
+      implicit val vw: Writes[V]    = writesSchema(vs, config)
+      implicitly[Writes[Map[K, V]]]
     case None            =>
       writesChunk(Writes.Tuple2W(writesSchema(ks, config), writesSchema(vs, config)))
         .contramap(Chunk.fromIterable)
   }
 
   def readsMap[K, V](ks: Schema[K], vs: Schema[V]): Reads[Map[K, V]] = readsField(ks) match {
-    case Some(reads) => Reads.keyMapReads(reads, readsSchema(vs))
-    case None        =>
+    case Some(keyReads) =>
+      implicit val kr: KeyReads[K] = keyReads
+      implicit val vr: Reads[V]    = readsSchema(vs)
+      implicitly[Reads[Map[K, V]]]
+    case None           =>
       readsChunk(Reads.Tuple2R(readsSchema(ks), readsSchema(vs))).map(_.toMap)
   }
 
