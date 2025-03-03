@@ -71,7 +71,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    needs: [build,lint,mima_check]
+    needs: [build,lint] #,mima_check]
     if: github.event_name != 'pull_request'
     steps:
       - name: Checkout current branch

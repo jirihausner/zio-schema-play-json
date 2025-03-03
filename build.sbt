@@ -68,7 +68,7 @@ lazy val zioSchemaPlayJson =
     .settings(
       Compile / unmanagedSources += {
         val file = (Compile / sourceManaged).value / "PlayJsonCompat.scala"
-        IO.write(file, "package zio.schema.codec.play.json.internal\nprivate[play] trait PlayJsonCompat {}")
+        IO.write(file, "package zio.schema.codec.play.json.internal\n\nprivate[play] trait PlayJsonCompat\n")
         file
       },
     )
