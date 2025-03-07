@@ -101,7 +101,7 @@ lazy val zioSchemaPlayJson =
 lazy val zioSchemaPlayJsonJVM = zioSchemaPlayJson.jvm
   .settings(
     testJVM := (Test / test).value,
-    testJS  := {},// disable testing JS
+    testJS  := {}, // disable testing JS
   )
 
 lazy val zioSchemaPlayJsonJS = zioSchemaPlayJson.js
