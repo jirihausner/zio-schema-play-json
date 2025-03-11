@@ -283,7 +283,7 @@ lazy val zioSchemaPlayJsonJsoniter27 =
       Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "main" / "scala",
       Compile / unmanagedSourceDirectories += {
         val currentScalaVersion = (ThisBuild / scalaVersion).value
-        if (currentScalaVersion == "2.12")
+        if (currentScalaVersion.startsWith("2.12"))
           (ThisBuild / baseDirectory).value / "zio-schema-play-json-27" / "src" / "main" / "scala-2.12"
         else (ThisBuild / baseDirectory).value / "zio-schema-play-json-27" / "src" / "main" / "scala-2.13"
       },
