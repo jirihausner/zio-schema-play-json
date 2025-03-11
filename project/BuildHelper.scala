@@ -176,7 +176,7 @@ object BuildHelper {
     Seq(
       name                          := projectName,
       crossScalaVersions            := scalaVersions,
-      ThisBuild / scalaVersion      := scalaVersions.head,
+      scalaVersion                  := scalaVersions.head,
       scalacOptions ++= compilerOptions(scalaVersion.value, optimize = !isSnapshot.value),
       libraryDependencies ++= {
         CrossVersion.partialVersion(scalaVersion.value) match {
