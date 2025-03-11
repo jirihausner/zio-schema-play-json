@@ -45,6 +45,7 @@ lazy val root = project
   .in(file("."))
   .settings(
     name                  := "zio-schema-play-json",
+    scalaVersion          := Scala213,
     publish / skip        := true,
     mimaPreviousArtifacts := Set.empty,
     testJVM               := {},
