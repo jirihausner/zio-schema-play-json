@@ -1,8 +1,10 @@
-package zio.schema.codec.play.json
+package zio.schema.codec.play.json.jsoniter
 
 import play.api.libs.json._
 import zio.schema.Schema
-import zio.schema.codec.play.json.internal.{Formats, JsonSplitter}
+import zio.schema.codec.play.json.PlayJsonCodec.Config
+import zio.schema.codec.play.json.internal.JsonSplitter
+import zio.schema.codec.play.json.jsoniter.internal.Formats
 import zio.schema.codec.{BinaryCodec, DecodeError}
 import zio.stream.ZPipeline
 import zio.{Cause, Chunk, ZIO}
@@ -10,48 +12,7 @@ import zio.{Cause, Chunk, ZIO}
 import java.nio.CharBuffer
 import java.nio.charset.StandardCharsets
 
-object PlayJsonCodec {
-
-  final case class Config(
-    ignoreEmptyCollections: Boolean,
-    ignoreNullValues: Boolean = true,
-    treatStreamsAsArrays: Boolean = false,
-  )
-
-  object Config {
-    val default: Config = Config(ignoreEmptyCollections = false)
-  }
-
-  implicit def playJsonBinaryCodec[A](implicit format: Writes[A] with Reads[A]): BinaryCodec[A] = new BinaryCodec[A] {
-
-    override def encode(value: A): Chunk[Byte] = {
-      val json  = Json.stringify(format.writes(value))
-      val bytes = StandardCharsets.UTF_8.newEncoder().encode(CharBuffer.wrap(json))
-      Chunk.fromByteBuffer(bytes)
-    }
-
-    override def streamEncoder: ZPipeline[Any, Nothing, A, Byte] =
-      ZPipeline.mapChunks[A, Chunk[Byte]](_.map(encode)).intersperse(Chunk.single('\n'.toByte)).flattenChunks
-
-    override def decode(whole: Chunk[Byte]): Either[DecodeError, A] = {
-      try {
-        format.reads(Json.parse(whole.toArray)) match {
-          case error: JsError      => throw JsResult.Exception(error)
-          case JsSuccess(value, _) => Right(value)
-        }
-      } catch {
-        case exception: Throwable => Left(DecodeError.ReadError(Cause.fail(exception), exception.getMessage))
-      }
-    }
-
-    override def streamDecoder: ZPipeline[Any, DecodeError, Byte, A] =
-      ZPipeline.fromChannel {
-        ZPipeline.utf8Decode.channel.mapError(cce => DecodeError.ReadError(Cause.fail(cce), cce.getMessage))
-      } >>> JsonSplitter.splitOnJsonBoundary >>> ZPipeline.mapZIO { (json: String) =>
-        val bytes = StandardCharsets.UTF_8.newEncoder().encode(CharBuffer.wrap(json))
-        ZIO.fromEither(decode(Chunk.fromByteBuffer(bytes)))
-      }
-  }
+object PlayJsonJsoniterCodec {
 
   def schemaBasedBinaryCodec[A](config: Config)(implicit schema: Schema[A]): BinaryCodec[A] = new BinaryCodec[A] {
 
