@@ -97,7 +97,7 @@ private[play] trait Formats extends PlayJsonCompat {
     final def writes(a: A): JsString = JsString(format.format(a))
   }
 
-  private def readsJavaTime[A](f: String => A): Reads[A] = new Reads[A] {
+  protected def readsJavaTime[A](f: String => A): Reads[A] = new Reads[A] {
     def reads(json: JsValue): JsResult[A] = json match {
       case JsString(str) =>
         try {

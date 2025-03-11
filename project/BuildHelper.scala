@@ -29,13 +29,14 @@ object BuildHelper {
 
   object Versions {
 
-    val playJson      = "3.0.4"
-    val playJson210   = "2.10.6"
-    val playJson27    = "2.7.4"
-    val playJson26    = "2.6.14"
-    val scalaJavaTime = "2.6.0"
-    val zio           = "2.1.16"
-    val zioSchema     = "1.6.6"
+    val playJson         = "3.0.4"
+    val playJson210      = "2.10.6"
+    val playJson27       = "2.7.4"
+    val playJson26       = "2.6.14"
+    val playJsonJsoniter = "1.1.1"
+    val scalaJavaTime    = "2.6.0"
+    val zio              = "2.1.16"
+    val zioSchema        = "1.6.6"
   }
 
   def compilerOptions(scalaVersion: String, optimize: Boolean) = {
@@ -173,7 +174,7 @@ object BuildHelper {
 
   def stdSettings(projectName: String, scalaVersions: Seq[String] = Seq(Scala213, Scala212, Scala3)) =
     Seq(
-      name                          := s"$projectName",
+      name                          := projectName,
       crossScalaVersions            := scalaVersions,
       ThisBuild / scalaVersion      := scalaVersions.head,
       scalacOptions ++= compilerOptions(scalaVersion.value, optimize = !isSnapshot.value),
@@ -212,7 +213,7 @@ object BuildHelper {
       mimaFailOnProblem             := true,
       testJVM                       := Def.taskDyn {
         val currentScalaVersion  = (ThisBuild / scalaVersion).value
-        val projectScalaVersions = (ThisBuild / crossScalaVersions).value
+        val projectScalaVersions = crossScalaVersions.value
         if (projectScalaVersions.contains(currentScalaVersion)) Test / test
         else {
           Keys.streams.value.log.warn(s"Skipping ${name.value}, Scala $currentScalaVersion is not supported!")
