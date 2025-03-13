@@ -35,7 +35,7 @@ object BuildHelper {
     val playJson26    = "2.6.14"
     val scalaJavaTime = "2.6.0"
     val zio           = "2.1.16"
-    val zioSchema     = "1.6.4"
+    val zioSchema     = "1.6.5"
   }
 
   def compilerOptions(scalaVersion: String, optimize: Boolean) = {
