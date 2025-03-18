@@ -387,7 +387,7 @@ private[play] trait Formats extends PlayJsonCompat {
     case s @ Schema
           .CaseClass15(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
       readsCaseClass15(s, discriminator)
-    case s @ Schema.CaseClass16(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)          =>
+    case s @ Schema.CaseClass16(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
       readsCaseClass16(s, discriminator)
     case s @ Schema.CaseClass17(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)       =>
       readsCaseClass17(s, discriminator)
