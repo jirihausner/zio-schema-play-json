@@ -1,7 +1,7 @@
 package zio.schema.codec.play.json
 
 import play.api.libs.json._
-import zio.schema._
+import zio.schema.Schema
 import zio.schema.codec.play.json.internal.{Formats, JsonSplitter}
 import zio.schema.codec.{BinaryCodec, DecodeError}
 import zio.stream.ZPipeline
