@@ -168,14 +168,14 @@ object BuildHelper {
     buildInfoPackage := packageName,
   )
 
-  lazy val testJVM = taskKey[Unit]("Runs JVM tests for applicable subprojects")
-  lazy val testJS  = taskKey[Unit]("Runs JS tests for applicable subprojects")
+  lazy val testJVM = taskKey[Unit]("Runs JVM tests for all applicable subprojects")
+  lazy val testJS  = taskKey[Unit]("Runs JS tests for all applicable subprojects")
 
   def stdSettings(projectName: String, scalaVersions: Seq[String] = Seq(Scala213, Scala212, Scala3)) =
     Seq(
-      name                          := s"$projectName",
+      name                          := projectName,
       crossScalaVersions            := scalaVersions,
-      ThisBuild / scalaVersion      := scalaVersions.head,
+      scalaVersion                  := scalaVersions.head,
       scalacOptions ++= compilerOptions(scalaVersion.value, optimize = !isSnapshot.value),
       libraryDependencies ++= {
         CrossVersion.partialVersion(scalaVersion.value) match {
@@ -212,7 +212,7 @@ object BuildHelper {
       mimaFailOnProblem             := true,
       testJVM                       := Def.taskDyn {
         val currentScalaVersion  = (ThisBuild / scalaVersion).value
-        val projectScalaVersions = (ThisBuild / crossScalaVersions).value
+        val projectScalaVersions = crossScalaVersions.value
         if (projectScalaVersions.contains(currentScalaVersion)) Test / test
         else {
           Keys.streams.value.log.warn(s"Skipping ${name.value}, Scala $currentScalaVersion is not supported!")

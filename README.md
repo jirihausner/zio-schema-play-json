@@ -12,7 +12,7 @@
 
 ## Installation
 
-In order to use this library, we need to add one of the following lines in your `build.sbt` file:
+In order to use this library, you need to add one of the following lines in your `build.sbt` file:
 
 ```scala
 libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json"     % "0.1.0" // play-json 3.0.+
