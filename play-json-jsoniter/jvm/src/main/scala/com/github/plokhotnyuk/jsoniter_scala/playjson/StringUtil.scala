@@ -1,8 +1,8 @@
-package play.api.libs.json
+package com.github.plokhotnyuk.jsoniter_scala.playjson
 
 import scala.annotation.nowarn
 
-private[json] object StringUtil {
+private[playjson] object StringUtil {
 
   @nowarn
   @inline

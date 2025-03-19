@@ -1,6 +1,6 @@
-package play.api.libs.json
+package com.github.plokhotnyuk.jsoniter_scala.playjson
 
-private[json] object StringUtil {
+private[playjson] object StringUtil {
 
   @inline
   def toString(buf: Array[Byte], len: Int): String = {

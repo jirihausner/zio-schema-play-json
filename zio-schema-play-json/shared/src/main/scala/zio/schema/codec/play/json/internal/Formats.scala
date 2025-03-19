@@ -108,7 +108,7 @@ private[play] trait Formats extends PlayJsonCompat {
             JsError(ex.getMessage)
         }
       case _             =>
-        JsError(s"error.expected.jstring")
+        JsError(s"error.expected.jsstring")
     }
   }
 
@@ -121,7 +121,7 @@ private[play] trait Formats extends PlayJsonCompat {
           case _: Throwable => JsError(s"error.expected.validcurrency")
         }
       case _             =>
-        JsError(s"error.expected.jstring")
+        JsError(s"error.expected.jsstring")
     }
   }
 
