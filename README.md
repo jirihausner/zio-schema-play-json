@@ -12,7 +12,7 @@
 
 ## Installation
 
-In order to use this library, we need to add one of the following lines in your `build.sbt` file:
+In order to use this library, you need to add one of the following lines in your `build.sbt` file:
 
 ```scala
 libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json"     % "0.1.0" // play-json 3.0.+
@@ -21,7 +21,16 @@ libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-27"  % "
 libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-26"  % "0.1.0" // play-json 2.6.+
 ```
 
-`zio-schema-play-json` also publishes artifacts for ScalaJS.
+`zio-schema-play-json` also re-implements [plokhotnyuk's jsoniter-scala Circe booster](https://github.com/plokhotnyuk/jsoniter-scala/tree/master/jsoniter-scala-circe) for boosting performance of numeric and java time Play JSON formats. In order to use them you need to add one of the following lines in your `build.sbt` file:
+
+```scala
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter"     % "0.1.0" // play-json 3.0.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-210" % "0.1.0" // play-json 2.10.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-27"  % "0.1.0" // play-json 2.7.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-26"  % "0.1.0" // play-json 2.6.+
+```
+
+`zio-schema-play-json` and `zio-schema-play-json-jsoniter` artifacts also support ScalaJS.
 
 ## Example
 

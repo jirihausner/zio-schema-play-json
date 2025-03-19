@@ -23,6 +23,8 @@ object PlayJsonJsoniterCodecSpec extends ZIOSpecDefault with WritesSpecs with Re
   override protected def BinaryCodec[A]: (Schema[A], Config) => codec.BinaryCodec[A] =
     (schema: Schema[A], config: PlayJsonCodec.Config) => PlayJsonJsoniterCodec.schemaBasedBinaryCodec(config)(schema)
 
+  import zio.schema.codec.play.json.jsoniter.schemaJsValue
+
   def spec: Spec[TestEnvironment, Any] =
     suite("PlayJsonJsoniterCodec specs")(
       writesSuite,

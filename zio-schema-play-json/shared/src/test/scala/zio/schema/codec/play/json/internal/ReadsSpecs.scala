@@ -816,10 +816,13 @@ private[play] trait ReadsSpecs {
         )
       },
       test("case class with option fields accepts empty json object as value") {
-        assertReadsToError(
+        assertReadsToOneOfErrors(
           WithOptionFields.schema,
           """{"a":"s", "b":{}}""",
-          JsError(JsPath \ "b", "error.expected.jsnumber"),
+          Seq(
+            JsError(JsPath \ "b", "error.expected.jsnumber"),
+            JsError(JsPath \ "b", "error.expected.int"), // in case of jsoniter
+          ),
         )
       },
       test("case class with complex option field rejects empty json object as value") {
