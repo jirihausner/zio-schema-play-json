@@ -45,7 +45,6 @@ lazy val root = project
   .in(file("."))
   .settings(
     name                  := "zio-schema-play-json",
-    scalaVersion          := Scala213,
     publish / skip        := true,
     mimaPreviousArtifacts := Set.empty,
     testJVM               := {},
@@ -271,7 +270,7 @@ lazy val zioSchemaPlayJsonJsoniter =
 lazy val zioSchemaPlayJsonJsoniterJVM = zioSchemaPlayJsonJsoniter.jvm
   .settings(
     testJVM := (Test / test).value,
-    testJS  := {},// disable testing JS
+    testJS  := {}, // disable testing JS
   )
 
 lazy val zioSchemaPlayJsonJsoniterJS = zioSchemaPlayJsonJsoniter.js
