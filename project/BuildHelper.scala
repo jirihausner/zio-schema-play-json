@@ -170,8 +170,8 @@ object BuildHelper {
     buildInfoPackage := packageName,
   )
 
-  lazy val testJVM = taskKey[Unit]("Runs JVM tests for applicable subprojects")
-  lazy val testJS  = taskKey[Unit]("Runs JS tests for applicable subprojects")
+  lazy val testJVM = taskKey[Unit]("Runs JVM tests for all applicable subprojects")
+  lazy val testJS  = taskKey[Unit]("Runs JS tests for all applicable subprojects")
 
   def stdSettings(projectName: String, scalaVersions: Seq[String] = Seq(Scala213, Scala212, Scala3)) =
     Seq(
