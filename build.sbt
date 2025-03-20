@@ -197,8 +197,9 @@ lazy val playJsonJsoniter =
       testJVM               := {},
       testJS                := {},
       libraryDependencies ++= Seq(
-        "org.playframework"                     %%% "play-json"           % Versions.playJson % Provided,
-        "com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % Versions.jsoniter,
+        "org.playframework"                     %%% "play-json"               % Versions.playJson % Provided,
+        "com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core"     % Versions.jsoniter,
+        "org.scala-lang.modules"                %%% "scala-collection-compat" % Versions.scalaCollectionCompat,
       ),
     )
     .settings(crossProjectSettings)
@@ -242,15 +243,16 @@ lazy val zioSchemaPlayJsonJsoniter =
     )
     .settings(
       libraryDependencies ++= Seq(
-        "org.playframework"                     %%% "play-json"             % Versions.playJson,
-        "com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core"   % Versions.jsoniter,
-        "dev.zio"                               %%% "zio"                   % Versions.zio,
-        "dev.zio"                               %%% "zio-test"              % Versions.zio       % Test,
-        "dev.zio"                               %%% "zio-test-sbt"          % Versions.zio       % Test,
-        "dev.zio"                               %%% "zio-streams"           % Versions.zio,
-        "dev.zio"                               %%% "zio-schema"            % Versions.zioSchema,
-        "dev.zio"                               %%% "zio-schema-derivation" % Versions.zioSchema % Test,
-        "dev.zio"                               %%% "zio-schema-zio-test"   % Versions.zioSchema % Test,
+        "org.playframework"                     %%% "play-json"               % Versions.playJson,
+        "com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core"     % Versions.jsoniter,
+        "org.scala-lang.modules"                %%% "scala-collection-compat" % Versions.scalaCollectionCompat,
+        "dev.zio"                               %%% "zio"                     % Versions.zio,
+        "dev.zio"                               %%% "zio-test"                % Versions.zio       % Test,
+        "dev.zio"                               %%% "zio-test-sbt"            % Versions.zio       % Test,
+        "dev.zio"                               %%% "zio-streams"             % Versions.zio,
+        "dev.zio"                               %%% "zio-schema"              % Versions.zioSchema,
+        "dev.zio"                               %%% "zio-schema-derivation"   % Versions.zioSchema % Test,
+        "dev.zio"                               %%% "zio-schema-zio-test"     % Versions.zioSchema % Test,
       ),
     )
     .settings(macroDefinitionSettings)
@@ -298,15 +300,16 @@ lazy val zioSchemaPlayJsonJsoniter210 =
     .settings(
       resolvers += MavenRepository("artifactory-evolution-public", "https://evolution.jfrog.io/artifactory/public"),
       libraryDependencies ++= Seq(
-        "com.typesafe.play"                     %% "play-json"             % Versions.playJson210,
-        "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"   % Versions.jsoniter,
-        "dev.zio"                               %% "zio"                   % Versions.zio,
-        "dev.zio"                               %% "zio-test"              % Versions.zio       % Test,
-        "dev.zio"                               %% "zio-test-sbt"          % Versions.zio       % Test,
-        "dev.zio"                               %% "zio-streams"           % Versions.zio,
-        "dev.zio"                               %% "zio-schema"            % Versions.zioSchema,
-        "dev.zio"                               %% "zio-schema-derivation" % Versions.zioSchema % Test,
-        "dev.zio"                               %% "zio-schema-zio-test"   % Versions.zioSchema % Test,
+        "com.typesafe.play"                     %% "play-json"               % Versions.playJson210,
+        "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"     % Versions.jsoniter,
+        "org.scala-lang.modules"               %%% "scala-collection-compat" % Versions.scalaCollectionCompat,
+        "dev.zio"                               %% "zio"                     % Versions.zio,
+        "dev.zio"                               %% "zio-test"                % Versions.zio       % Test,
+        "dev.zio"                               %% "zio-test-sbt"            % Versions.zio       % Test,
+        "dev.zio"                               %% "zio-streams"             % Versions.zio,
+        "dev.zio"                               %% "zio-schema"              % Versions.zioSchema,
+        "dev.zio"                               %% "zio-schema-derivation"   % Versions.zioSchema % Test,
+        "dev.zio"                               %% "zio-schema-zio-test"     % Versions.zioSchema % Test,
       ),
     )
     .settings(macroDefinitionSettings)
@@ -335,15 +338,16 @@ lazy val zioSchemaPlayJsonJsoniter27 =
     )
     .settings(
       libraryDependencies ++= Seq(
-        "com.typesafe.play"                     %% "play-json"             % Versions.playJson27,
-        "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"   % Versions.jsoniter,
-        "dev.zio"                               %% "zio"                   % Versions.zio,
-        "dev.zio"                               %% "zio-test"              % Versions.zio       % Test,
-        "dev.zio"                               %% "zio-test-sbt"          % Versions.zio       % Test,
-        "dev.zio"                               %% "zio-streams"           % Versions.zio,
-        "dev.zio"                               %% "zio-schema"            % Versions.zioSchema,
-        "dev.zio"                               %% "zio-schema-derivation" % Versions.zioSchema % Test,
-        "dev.zio"                               %% "zio-schema-zio-test"   % Versions.zioSchema % Test,
+        "com.typesafe.play"                     %% "play-json"               % Versions.playJson27,
+        "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"     % Versions.jsoniter,
+        "org.scala-lang.modules"               %%% "scala-collection-compat" % Versions.scalaCollectionCompat,
+        "dev.zio"                               %% "zio"                     % Versions.zio,
+        "dev.zio"                               %% "zio-test"                % Versions.zio       % Test,
+        "dev.zio"                               %% "zio-test-sbt"            % Versions.zio       % Test,
+        "dev.zio"                               %% "zio-streams"             % Versions.zio,
+        "dev.zio"                               %% "zio-schema"              % Versions.zioSchema,
+        "dev.zio"                               %% "zio-schema-derivation"   % Versions.zioSchema % Test,
+        "dev.zio"                               %% "zio-schema-zio-test"     % Versions.zioSchema % Test,
       ),
     )
     .settings(macroDefinitionSettings)
@@ -367,15 +371,16 @@ lazy val zioSchemaPlayJsonJsoniter26 =
     )
     .settings(
       libraryDependencies ++= Seq(
-        "com.typesafe.play"                     %% "play-json"             % Versions.playJson26,
-        "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"   % Versions.jsoniter,
-        "dev.zio"                               %% "zio"                   % Versions.zio,
-        "dev.zio"                               %% "zio-test"              % Versions.zio       % Test,
-        "dev.zio"                               %% "zio-test-sbt"          % Versions.zio       % Test,
-        "dev.zio"                               %% "zio-streams"           % Versions.zio,
-        "dev.zio"                               %% "zio-schema"            % Versions.zioSchema,
-        "dev.zio"                               %% "zio-schema-derivation" % Versions.zioSchema % Test,
-        "dev.zio"                               %% "zio-schema-zio-test"   % Versions.zioSchema % Test,
+        "com.typesafe.play"                     %% "play-json"               % Versions.playJson26,
+        "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"     % Versions.jsoniter,
+        "org.scala-lang.modules"               %%% "scala-collection-compat" % Versions.scalaCollectionCompat,
+        "dev.zio"                               %% "zio"                     % Versions.zio,
+        "dev.zio"                               %% "zio-test"                % Versions.zio       % Test,
+        "dev.zio"                               %% "zio-test-sbt"            % Versions.zio       % Test,
+        "dev.zio"                               %% "zio-streams"             % Versions.zio,
+        "dev.zio"                               %% "zio-schema"              % Versions.zioSchema,
+        "dev.zio"                               %% "zio-schema-derivation"   % Versions.zioSchema % Test,
+        "dev.zio"                               %% "zio-schema-zio-test"     % Versions.zioSchema % Test,
       ),
     )
     .settings(macroDefinitionSettings)

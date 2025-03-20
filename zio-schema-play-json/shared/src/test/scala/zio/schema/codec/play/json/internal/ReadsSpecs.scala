@@ -15,7 +15,7 @@ import zio.{Cause, Chunk, Console, ZIO}
 
 import scala.collection.immutable.ListMap
 
-private[play] trait ReadsSpecs {
+private[play] trait ReadsSpecs extends StringUtils {
 
   type Config
 

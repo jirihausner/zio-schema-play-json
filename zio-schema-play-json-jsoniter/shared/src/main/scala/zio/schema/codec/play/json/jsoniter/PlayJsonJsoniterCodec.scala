@@ -1,5 +1,6 @@
 package zio.schema.codec.play.json.jsoniter
 
+import com.github.plokhotnyuk.jsoniter_scala.core.{JsonValueCodec, readFromArray, writeToArray}
 import play.api.libs.json._
 import zio.schema.Schema
 import zio.schema.codec.play.json.PlayJsonCodec.Config
@@ -14,16 +15,42 @@ import java.nio.charset.StandardCharsets
 
 object PlayJsonJsoniterCodec {
 
+  private[play] val jsValueCodec: JsonValueCodec[JsValue] = JsValueJsonValueCodec()
+
+  implicit def playJsonJsoniterBinaryCodec[A](implicit format: Writes[A] with Reads[A]): BinaryCodec[A] =
+    new BinaryCodec[A] {
+
+      override def encode(value: A): Chunk[Byte] = Chunk.fromArray(writeToArray(format.writes(value))(jsValueCodec))
+
+      override def streamEncoder: ZPipeline[Any, Nothing, A, Byte] =
+        ZPipeline.mapChunks[A, Chunk[Byte]](_.map(encode)).intersperse(Chunk.single('\n'.toByte)).flattenChunks
+
+      override def decode(whole: Chunk[Byte]): Either[DecodeError, A] = {
+        try {
+          format.reads(readFromArray(whole.toArray)(jsValueCodec)) match {
+            case error: JsError      => throw JsResult.Exception(error)
+            case JsSuccess(value, _) => Right(value)
+          }
+        } catch {
+          case exception: Throwable => Left(DecodeError.ReadError(Cause.fail(exception), exception.getMessage))
+        }
+      }
+
+      override def streamDecoder: ZPipeline[Any, DecodeError, Byte, A] =
+        ZPipeline.fromChannel {
+          ZPipeline.utf8Decode.channel.mapError(cce => DecodeError.ReadError(Cause.fail(cce), cce.getMessage))
+        } >>> JsonSplitter.splitOnJsonBoundary >>> ZPipeline.mapZIO { (json: String) =>
+          val bytes = StandardCharsets.UTF_8.newEncoder().encode(CharBuffer.wrap(json))
+          ZIO.fromEither(decode(Chunk.fromByteBuffer(bytes)))
+        }
+    }
+
   def schemaBasedBinaryCodec[A](config: Config)(implicit schema: Schema[A]): BinaryCodec[A] = new BinaryCodec[A] {
 
     private lazy val w: Writes[A] = schemaWrites(schema)(config)
     private lazy val r: Reads[A]  = schemaReads(schema)
 
-    override def encode(value: A): Chunk[Byte] = {
-      val json  = Json.stringify(w.writes(value))
-      val bytes = StandardCharsets.UTF_8.newEncoder().encode(CharBuffer.wrap(json))
-      Chunk.fromByteBuffer(bytes)
-    }
+    override def encode(value: A): Chunk[Byte] = Chunk.fromArray(writeToArray(w.writes(value))(jsValueCodec))
 
     override def streamEncoder: ZPipeline[Any, Nothing, A, Byte] =
       if (config.treatStreamsAsArrays) {
@@ -40,7 +67,7 @@ object PlayJsonJsoniterCodec {
 
     override def decode(whole: Chunk[Byte]): Either[DecodeError, A] = {
       try {
-        r.reads(Json.parse(new String(whole.toArray, StandardCharsets.UTF_8))) match {
+        r.reads(readFromArray(whole.toArray)(jsValueCodec)) match {
           case error: JsError      => throw JsResult.Exception(error)
           case JsSuccess(value, _) => Right(value)
         }

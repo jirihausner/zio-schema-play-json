@@ -12,7 +12,7 @@ import zio.{Chunk, Console, ZIO}
 
 import scala.collection.immutable.ListMap
 
-private[play] trait WritesSpecs {
+private[play] trait WritesSpecs extends StringUtils {
 
   type Config
 
