@@ -1,6 +1,5 @@
 import BuildHelper._
 import com.typesafe.tools.mima.plugin.MimaKeys.mimaPreviousArtifacts
-import xerial.sbt.Sonatype.sonatypeCentralHost
 
 lazy val binCompatVersionToCompare = None
 
@@ -25,9 +24,6 @@ inThisBuild(
     ),
   ),
 )
-
-ThisBuild / sonatypeCredentialHost := sonatypeCentralHost
-sonatypeRepository                 := "https://s01.oss.sonatype.org/service/local"
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
