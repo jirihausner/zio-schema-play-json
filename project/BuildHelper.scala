@@ -198,8 +198,8 @@ object BuildHelper {
         }
       },
       ThisBuild / semanticdbEnabled := scalaVersion.value != Scala3,
-      ThisBuild / semanticdbOptions ++= {
-        if (scalaVersion.value != Scala3) List("-P:semanticdb:synthetics:on")
+      ThisBuild / semanticdbOptions --= {
+        if (scalaVersion.value == Scala3) List("-P:semanticdb:synthetics:on")
         else List.empty
       },
       ThisBuild / semanticdbVersion := scalafixSemanticdb.revision,
