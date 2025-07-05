@@ -116,7 +116,7 @@ lazy val zioSchemaPlayJson210 =
     )
     .settings(
       libraryDependencies ++= Seq(
-        "com.typesafe.play" %% "play-json"             % Versions.playJson210,
+        "org.playframework" %% "play-json"             % Versions.playJson210,
         "dev.zio"           %% "zio"                   % Versions.zio,
         "dev.zio"           %% "zio-test"              % Versions.zio       % Test,
         "dev.zio"           %% "zio-test-sbt"          % Versions.zio       % Test,
@@ -139,7 +139,7 @@ lazy val zioSchemaPlayJson27 =
     )
     .settings(
       libraryDependencies ++= Seq(
-        "com.typesafe.play" %% "play-json"             % Versions.playJson27,
+        "org.playframework" %% "play-json"             % Versions.playJson27,
         "dev.zio"           %% "zio"                   % Versions.zio,
         "dev.zio"           %% "zio-test"              % Versions.zio       % Test,
         "dev.zio"           %% "zio-test-sbt"          % Versions.zio       % Test,
@@ -163,7 +163,7 @@ lazy val zioSchemaPlayJson26 =
     )
     .settings(
       libraryDependencies ++= Seq(
-        "com.typesafe.play" %% "play-json"             % Versions.playJson26,
+        "org.playframework" %% "play-json"             % Versions.playJson26,
         "dev.zio"           %% "zio"                   % Versions.zio,
         "dev.zio"           %% "zio-test"              % Versions.zio       % Test,
         "dev.zio"           %% "zio-test-sbt"          % Versions.zio       % Test,
