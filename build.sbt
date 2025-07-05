@@ -52,6 +52,13 @@ lazy val root = project
     zioSchemaPlayJson210,
     zioSchemaPlayJson27,
     zioSchemaPlayJson26,
+    zioSchemaPlayJsonJsoniterJVM,
+    zioSchemaPlayJsonJsoniterJS,
+    zioSchemaPlayJsonJsoniter210,
+    zioSchemaPlayJsonJsoniter27,
+    zioSchemaPlayJsonJsoniter26,
+    playJsonJsoniter.jvm,
+    playJsonJsoniter.js,
   )
 
 lazy val zioSchemaPlayJson =
@@ -171,6 +178,205 @@ lazy val zioSchemaPlayJson26 =
         "dev.zio"           %% "zio-schema"            % Versions.zioSchema,
         "dev.zio"           %% "zio-schema-derivation" % Versions.zioSchema % Test,
         "dev.zio"           %% "zio-schema-zio-test"   % Versions.zioSchema % Test,
+      ),
+    )
+    .settings(macroDefinitionSettings)
+    .settings(Test / fork := true)
+
+lazy val playJsonJsoniter =
+  crossProject(JSPlatform, JVMPlatform)
+    .in(file("play-json-jsoniter"))
+    .settings(stdSettings("play-json-jsoniter"))
+    .settings(
+      publish / skip        := true,
+      mimaPreviousArtifacts := Set.empty,
+      testJVM               := {},
+      testJS                := {},
+      libraryDependencies ++= Seq(
+        "org.playframework"                     %%% "play-json"               % Versions.playJson % Provided,
+        "com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core"     % Versions.jsoniter,
+        "org.scala-lang.modules"                %%% "scala-collection-compat" % Versions.scalaCollectionCompat,
+      ),
+    )
+    .settings(crossProjectSettings)
+    .settings(Test / fork := crossProjectPlatform.value == JVMPlatform)
+    .jsSettings(
+      libraryDependencies ++= Seq(
+        "io.github.cquiroz" %%% "scala-java-time"      % Versions.scalaJavaTime,
+        "io.github.cquiroz" %%% "scala-java-time-tzdb" % Versions.scalaJavaTime,
+      ),
+    )
+    .jsSettings(
+      scalaJSLinkerConfig ~= { _.withOptimizer(false) },
+      scalaJSUseMainModuleInitializer := true,
+    )
+
+lazy val zioSchemaPlayJsonJsoniter =
+  crossProject(JSPlatform, JVMPlatform)
+    .in(file("zio-schema-play-json-jsoniter"))
+    .enablePlugins(BuildInfoPlugin)
+    .settings(stdSettings("zio-schema-play-json-jsoniter"))
+    .settings(buildInfoSettings("zio.schema.codec.play.json.jsoniter"))
+    .settings(mimaSettings(binCompatVersionToCompare, failOnProblem = true))
+    .settings(
+      Compile / unmanagedSources += {
+        val file = (Compile / sourceManaged).value / "PlayJsonCompat.scala"
+        IO.write(file, "package zio.schema.codec.play.json.internal\n\nprivate[play] trait PlayJsonCompat\n")
+        file
+      },
+    )
+    .settings(
+      Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "main" / "scala",
+      Compile / unmanagedSourceDirectories += {
+        if (crossProjectPlatform.value == JVMPlatform)
+          (ThisBuild / baseDirectory).value / "play-json-jsoniter" / "jvm" / "src" / "main" / "scala"
+        else
+          (ThisBuild / baseDirectory).value / "play-json-jsoniter" / "js" / "src" / "main" / "scala"
+      },
+      Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "play-json-jsoniter" / "shared" / "src" / "main" / "scala",
+      Test / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "test" / "scala",
+      Test / testOptions += Tests.Argument("-ignore-tags", "core"),
+    )
+    .settings(
+      libraryDependencies ++= Seq(
+        "org.playframework"                     %%% "play-json"               % Versions.playJson,
+        "com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core"     % Versions.jsoniter,
+        "org.scala-lang.modules"                %%% "scala-collection-compat" % Versions.scalaCollectionCompat,
+        "dev.zio"                               %%% "zio"                     % Versions.zio,
+        "dev.zio"                               %%% "zio-test"                % Versions.zio       % Test,
+        "dev.zio"                               %%% "zio-test-sbt"            % Versions.zio       % Test,
+        "dev.zio"                               %%% "zio-streams"             % Versions.zio,
+        "dev.zio"                               %%% "zio-schema"              % Versions.zioSchema,
+        "dev.zio"                               %%% "zio-schema-derivation"   % Versions.zioSchema % Test,
+        "dev.zio"                               %%% "zio-schema-zio-test"     % Versions.zioSchema % Test,
+      ),
+    )
+    .settings(macroDefinitionSettings)
+    .settings(crossProjectSettings)
+    .settings(Test / fork := crossProjectPlatform.value == JVMPlatform)
+    .jsSettings(
+      libraryDependencies ++= Seq(
+        "io.github.cquiroz" %%% "scala-java-time"      % Versions.scalaJavaTime,
+        "io.github.cquiroz" %%% "scala-java-time-tzdb" % Versions.scalaJavaTime,
+      ),
+    )
+    .jsSettings(
+      scalaJSLinkerConfig ~= { _.withOptimizer(false) },
+      scalaJSUseMainModuleInitializer := true,
+    )
+
+lazy val zioSchemaPlayJsonJsoniterJVM = zioSchemaPlayJsonJsoniter.jvm
+  .settings(
+    testJVM := (Test / test).value,
+    testJS  := {}, // disable testing JS
+  )
+
+lazy val zioSchemaPlayJsonJsoniterJS = zioSchemaPlayJsonJsoniter.js
+  .settings(
+    testJVM := {}, // disable testing JVM
+    testJS  := (Test / test).value,
+  )
+
+lazy val zioSchemaPlayJsonJsoniter210 =
+  project
+    .in(file("zio-schema-play-json-jsoniter-210"))
+    .settings(stdSettings("zio-schema-play-json-jsoniter-210"))
+    .settings(
+      Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "main" / "scala",
+      Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json-210" / "src" / "main" / "scala",
+      Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json-jsoniter" / "shared" / "src" / "main" / "scala",
+      Compile / unmanagedSourceDirectories ++= Seq(
+        (ThisBuild / baseDirectory).value / "play-json-jsoniter" / "jvm" / "src" / "main" / "scala",
+        (ThisBuild / baseDirectory).value / "play-json-jsoniter" / "shared" / "src" / "main" / "scala",
+      ),
+      Test / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "test" / "scala",
+      Test / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json-jsoniter" / "shared" / "src" / "test" / "scala",
+      Test / testOptions += Tests.Argument("-ignore-tags", "core"),
+    )
+    .settings(
+      resolvers += MavenRepository("artifactory-evolution-public", "https://evolution.jfrog.io/artifactory/public"),
+      libraryDependencies ++= Seq(
+        "com.typesafe.play"                     %% "play-json"               % Versions.playJson210,
+        "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"     % Versions.jsoniter,
+        "org.scala-lang.modules"               %%% "scala-collection-compat" % Versions.scalaCollectionCompat,
+        "dev.zio"                               %% "zio"                     % Versions.zio,
+        "dev.zio"                               %% "zio-test"                % Versions.zio       % Test,
+        "dev.zio"                               %% "zio-test-sbt"            % Versions.zio       % Test,
+        "dev.zio"                               %% "zio-streams"             % Versions.zio,
+        "dev.zio"                               %% "zio-schema"              % Versions.zioSchema,
+        "dev.zio"                               %% "zio-schema-derivation"   % Versions.zioSchema % Test,
+        "dev.zio"                               %% "zio-schema-zio-test"     % Versions.zioSchema % Test,
+      ),
+    )
+    .settings(macroDefinitionSettings)
+    .settings(Test / fork := true)
+
+lazy val zioSchemaPlayJsonJsoniter27 =
+  project
+    .in(file("zio-schema-play-json-jsoniter-27"))
+    .settings(stdSettings("zio-schema-play-json-jsoniter-27", scalaVersions = Seq(Scala213, Scala212)))
+    .settings(
+      Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "main" / "scala",
+      Compile / unmanagedSourceDirectories += {
+        val currentScalaVersion = (ThisBuild / scalaVersion).value
+        if (currentScalaVersion.startsWith("2.12"))
+          (ThisBuild / baseDirectory).value / "zio-schema-play-json-27" / "src" / "main" / "scala-2.12"
+        else (ThisBuild / baseDirectory).value / "zio-schema-play-json-27" / "src" / "main" / "scala-2.13"
+      },
+      Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json-jsoniter" / "shared" / "src" / "main" / "scala",
+      Compile / unmanagedSourceDirectories ++= Seq(
+        (ThisBuild / baseDirectory).value / "play-json-jsoniter" / "jvm" / "src" / "main" / "scala",
+        (ThisBuild / baseDirectory).value / "play-json-jsoniter" / "shared" / "src" / "main" / "scala",
+      ),
+      Test / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "test" / "scala",
+      Test / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json-jsoniter" / "shared" / "src" / "test" / "scala",
+      Test / testOptions += Tests.Argument("-ignore-tags", "core"),
+    )
+    .settings(
+      libraryDependencies ++= Seq(
+        "com.typesafe.play"                     %% "play-json"               % Versions.playJson27,
+        "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"     % Versions.jsoniter,
+        "org.scala-lang.modules"               %%% "scala-collection-compat" % Versions.scalaCollectionCompat,
+        "dev.zio"                               %% "zio"                     % Versions.zio,
+        "dev.zio"                               %% "zio-test"                % Versions.zio       % Test,
+        "dev.zio"                               %% "zio-test-sbt"            % Versions.zio       % Test,
+        "dev.zio"                               %% "zio-streams"             % Versions.zio,
+        "dev.zio"                               %% "zio-schema"              % Versions.zioSchema,
+        "dev.zio"                               %% "zio-schema-derivation"   % Versions.zioSchema % Test,
+        "dev.zio"                               %% "zio-schema-zio-test"     % Versions.zioSchema % Test,
+      ),
+    )
+    .settings(macroDefinitionSettings)
+    .settings(Test / fork := true)
+
+lazy val zioSchemaPlayJsonJsoniter26 =
+  project
+    .in(file("zio-schema-play-json-jsoniter-26"))
+    .settings(stdSettings("zio-schema-play-json-jsoniter-26", scalaVersions = Seq(Scala212)))
+    .settings(
+      Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "main" / "scala",
+      Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json-27" / "src" / "main" / "scala-2.12",
+      Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json-jsoniter" / "shared" / "src" / "main" / "scala",
+      Compile / unmanagedSourceDirectories ++= Seq(
+        (ThisBuild / baseDirectory).value / "play-json-jsoniter" / "jvm" / "src" / "main" / "scala",
+        (ThisBuild / baseDirectory).value / "play-json-jsoniter" / "shared" / "src" / "main" / "scala",
+      ),
+      Test / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json" / "shared" / "src" / "test" / "scala",
+      Test / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "zio-schema-play-json-jsoniter" / "shared" / "src" / "test" / "scala",
+      Test / testOptions += Tests.Argument("-ignore-tags", "core"),
+    )
+    .settings(
+      libraryDependencies ++= Seq(
+        "com.typesafe.play"                     %% "play-json"               % Versions.playJson26,
+        "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"     % Versions.jsoniter,
+        "org.scala-lang.modules"               %%% "scala-collection-compat" % Versions.scalaCollectionCompat,
+        "dev.zio"                               %% "zio"                     % Versions.zio,
+        "dev.zio"                               %% "zio-test"                % Versions.zio       % Test,
+        "dev.zio"                               %% "zio-test-sbt"            % Versions.zio       % Test,
+        "dev.zio"                               %% "zio-streams"             % Versions.zio,
+        "dev.zio"                               %% "zio-schema"              % Versions.zioSchema,
+        "dev.zio"                               %% "zio-schema-derivation"   % Versions.zioSchema % Test,
+        "dev.zio"                               %% "zio-schema-zio-test"     % Versions.zioSchema % Test,
       ),
     )
     .settings(macroDefinitionSettings)

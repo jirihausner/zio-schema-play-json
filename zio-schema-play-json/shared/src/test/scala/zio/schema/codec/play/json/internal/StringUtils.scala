@@ -1,4 +1,4 @@
-package zio.schema.codec.play.json
+package zio.schema.codec.play.json.internal
 
 import play.api.libs.json.{Json, Writes}
 import zio.Chunk
@@ -6,7 +6,7 @@ import zio.Chunk
 import java.nio.CharBuffer
 import java.nio.charset.StandardCharsets
 
-package object internal {
+trait StringUtils {
 
   private[play] def stringify(str: String): String = Json.stringify(Writes.StringWrites.writes(str))
 

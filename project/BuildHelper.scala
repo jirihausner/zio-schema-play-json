@@ -29,13 +29,15 @@ object BuildHelper {
 
   object Versions {
 
-    val playJson      = "3.0.4"
-    val playJson210   = "2.10.6"
-    val playJson27    = "2.7.4"
-    val playJson26    = "2.6.14"
-    val scalaJavaTime = "2.6.0"
-    val zio           = "2.1.19"
-    val zioSchema     = "1.7.0"
+    val playJson              = "3.0.4"
+    val playJson210           = "2.10.6"
+    val playJson27            = "2.7.4"
+    val playJson26            = "2.6.14"
+    val jsoniter              = "2.33.2"
+    val scalaJavaTime         = "2.6.0"
+    val zio                   = "2.1.19"
+    val zioSchema             = "1.7.0"
+    val scalaCollectionCompat = "2.10.0"
   }
 
   def compilerOptions(scalaVersion: String, optimize: Boolean) = {
@@ -196,8 +198,8 @@ object BuildHelper {
         }
       },
       ThisBuild / semanticdbEnabled := scalaVersion.value != Scala3,
-      ThisBuild / semanticdbOptions ++= {
-        if (scalaVersion.value != Scala3) List("-P:semanticdb:synthetics:on")
+      ThisBuild / semanticdbOptions --= {
+        if (scalaVersion.value == Scala3) List("-P:semanticdb:synthetics:on")
         else List.empty
       },
       ThisBuild / semanticdbVersion := scalafixSemanticdb.revision,
