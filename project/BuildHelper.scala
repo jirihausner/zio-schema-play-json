@@ -46,6 +46,7 @@ object BuildHelper {
       "-feature",
       "-unchecked",
       "-language:existentials",
+      "-language:implicitConversions",
     ) ++ {
       if (sys.env.contains("CI")) {
         Seq("-Xfatal-warnings")
@@ -77,11 +78,8 @@ object BuildHelper {
     val extraOptions = CrossVersion.partialVersion(scalaVersion) match {
       case Some((3, _))  =>
         Seq(
-          "-language:implicitConversions",
           "-Xignore-scala2-macros",
-          "-Xkind-projector",
-          "-source:3.0-migration",
-          "-rewrite",
+          "-Ykind-projector",
         )
       case Some((2, 13)) =>
         Seq(
@@ -101,7 +99,7 @@ object BuildHelper {
           "-Ywarn-nullary-override",
           "-Ywarn-nullary-unit",
           "-Wconf:cat=unused-nowarn:s",
-          "-Ywarn-unused-import",
+          "-Wconf:cat=deprecation:silent",
         ) ++ std2xOptions ++ optimizerOptions
       case _             => Seq.empty
     }
