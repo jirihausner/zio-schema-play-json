@@ -25,7 +25,7 @@ object BuildHelper {
 
   val Scala212: String = versions("2.12")
   val Scala213: String = versions("2.13")
-  val Scala3: String   = versions("3.5")
+  val Scala3: String   = versions("3.3")
 
   object Versions {
 
@@ -46,6 +46,7 @@ object BuildHelper {
       "-feature",
       "-unchecked",
       "-language:existentials",
+      "-language:implicitConversions",
     ) ++ {
       if (sys.env.contains("CI")) {
         Seq("-Xfatal-warnings")
@@ -77,11 +78,8 @@ object BuildHelper {
     val extraOptions = CrossVersion.partialVersion(scalaVersion) match {
       case Some((3, _))  =>
         Seq(
-          "-language:implicitConversions",
           "-Xignore-scala2-macros",
-          "-Xkind-projector",
-          "-source:3.0-migration",
-          "-rewrite",
+          "-Ykind-projector",
         )
       case Some((2, 13)) =>
         Seq(
@@ -93,15 +91,16 @@ object BuildHelper {
         ) ++ std2xOptions ++ optimizerOptions
       case Some((2, 12)) =>
         Seq(
-          "-Ypartial-unification",
           "-opt-warnings",
-          "-Ywarn-extra-implicit",
           "-Yno-adapted-args",
+          "-Ypartial-unification",
+          "-Ywarn-extra-implicit",
           "-Ywarn-inaccessible",
           "-Ywarn-nullary-override",
           "-Ywarn-nullary-unit",
-          "-Wconf:cat=unused-nowarn:s",
           "-Ywarn-unused-import",
+          "-Wconf:cat=deprecation:silent",
+          "-Wconf:cat=unused-nowarn:s",
         ) ++ std2xOptions ++ optimizerOptions
       case _             => Seq.empty
     }
