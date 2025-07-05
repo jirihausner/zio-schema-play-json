@@ -21,7 +21,7 @@ jobs:
       - name: Restore cache
         uses: coursier/cache-action@v6
         id: coursier-cache
-      - name: Setup Scala and Java
+      - name: Setup Scala, JDK
         uses: coursier/setup-action@v1
         with:
           apps: sbt
@@ -47,7 +47,7 @@ jobs:
       - name: Restore cache
         uses: coursier/cache-action@v6
         id: coursier-cache
-      - name: Setup Scala and Java
+      - name: Setup Scala, JDK
         uses: coursier/setup-action@v1
         with:
           apps: sbt
@@ -70,7 +70,7 @@ jobs:
   #     - name: Restore cache
   #       uses: coursier/cache-action@v6
   #       id: coursier-cache
-  #     - name: Setup Scala and Java
+  #     - name: Setup Scala, JDK
   #       uses: coursier/setup-action@v1
   #       with:
   #         jvm: temurin:21
@@ -95,7 +95,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Setup Scala and Java
+      - name: Setup Scala, JDK
         uses: coursier/setup-action@v1
         with:
           apps: sbt
