@@ -195,6 +195,10 @@ object BuildHelper {
         }
       },
       ThisBuild / semanticdbEnabled := scalaVersion.value != Scala3,
+      ThisBuild / semanticdbOptions ++= {
+        if (scalaVersion.value != Scala3) List("-P:semanticdb:synthetics:on")
+        else List.empty
+      },
       ThisBuild / semanticdbVersion := scalafixSemanticdb.revision,
       ThisBuild / scalafixDependencies ++= List(
         "com.github.vovapolu"                      %% "scaluzzi" % "0.1.23",
