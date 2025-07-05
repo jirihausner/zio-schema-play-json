@@ -91,15 +91,16 @@ object BuildHelper {
         ) ++ std2xOptions ++ optimizerOptions
       case Some((2, 12)) =>
         Seq(
-          "-Ypartial-unification",
           "-opt-warnings",
-          "-Ywarn-extra-implicit",
           "-Yno-adapted-args",
+          "-Ypartial-unification",
+          "-Ywarn-extra-implicit",
           "-Ywarn-inaccessible",
           "-Ywarn-nullary-override",
           "-Ywarn-nullary-unit",
-          "-Wconf:cat=unused-nowarn:s",
+          "-Ywarn-unused-import",
           "-Wconf:cat=deprecation:silent",
+          "-Wconf:cat=unused-nowarn:s",
         ) ++ std2xOptions ++ optimizerOptions
       case _             => Seq.empty
     }
