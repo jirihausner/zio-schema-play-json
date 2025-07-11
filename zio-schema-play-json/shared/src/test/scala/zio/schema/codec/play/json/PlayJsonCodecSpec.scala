@@ -25,7 +25,7 @@ object PlayJsonCodecSpec extends ZIOSpecDefault with WritesSpecs with ReadsSpecs
   override protected def BinaryCodec[A]: (Schema[A], Config) => codec.BinaryCodec[A] =
     (schema: Schema[A], config: PlayJsonCodec.Config) => PlayJsonCodec.schemaBasedBinaryCodec(config)(schema)
 
-  val playJsonASTSuite: Spec[Any, DecodeError] = suite("Play JSON AST")(
+  def playJsonASTSuite(implicit schemaJsValue: Schema[JsValue]): Spec[Any, DecodeError] = suite("Play JSON AST")(
     suite("play.api.lib.json.JsValue")(
       test("reads and writes null") {
         assertReads(schemaJsValue, """null""", JsNull) &&
@@ -193,5 +193,5 @@ object PlayJsonCodecSpec extends ZIOSpecDefault with WritesSpecs with ReadsSpecs
       readsSuite,
       writeReadsSuite,
       playJsonASTSuite,
-    ) @@ timeout(180.seconds)
+    ) @@ timeout(180.seconds) @@ tag("core")
 }
