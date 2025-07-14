@@ -3,6 +3,7 @@ package zio.schema.codec.play.json.internal
 import zio.prelude.NonEmptyMap
 import zio.schema._
 import zio.schema.annotation._
+import zio.schema.codec.play.json.PlayJsonCodec.Configuration
 import zio.schema.codec.play.json.internal.Data._
 import zio.stream.ZStream
 import zio.test.Assertion._
@@ -14,21 +15,17 @@ import scala.collection.immutable.ListMap
 
 private[play] trait WritesSpecs extends StringUtils {
 
-  type Config
+  protected def IgnoreEmptyCollectionsConfig: Configuration       // should ignore empty collections
+  protected def KeepNullsAndEmptyColleciontsConfig: Configuration // should keep nulls and empty collections
+  protected def StreamingConfig: Configuration // should keep empty collections and treat streams as arrays
 
-  protected def DefaultConfig: Config // should keep empty collections but ignore nulls
-
-  protected def IgnoreEmptyCollectionsConfig: Config       // should ignore empty collections
-  protected def KeepNullsAndEmptyColleciontsConfig: Config // should keep nulls and empty collections
-  protected def StreamingConfig: Config                    // should keep empty collections and treat streams as arrays
-
-  protected def BinaryCodec[A]: (Schema[A], Config) => codec.BinaryCodec[A]
+  protected def BinaryCodec[A]: (Schema[A], Configuration) => codec.BinaryCodec[A]
 
   final protected def assertWrites[A](
     schema: Schema[A],
     value: A,
     json: CharSequence,
-    config: Config = DefaultConfig,
+    config: Configuration = Configuration.default,
     debug: Boolean = false,
   ): ZIO[Any, Nothing, TestResult] = {
     val stream = ZStream
@@ -46,7 +43,7 @@ private[play] trait WritesSpecs extends StringUtils {
     schema: Schema[A],
     values: Seq[A],
     json: CharSequence,
-    config: Config = DefaultConfig,
+    config: Configuration = Configuration.default,
     debug: Boolean = false,
   ): ZIO[Any, Nothing, TestResult] = {
     val stream = ZStream
@@ -572,6 +569,7 @@ private[play] trait WritesSpecs extends StringUtils {
               request.nextPage
                 .map(x => s""","nextPage":${stringify(x)}}""")
                 .getOrElse("""}"""),
+            IgnoreEmptyCollectionsConfig,
           )
         }
       },
@@ -594,6 +592,7 @@ private[play] trait WritesSpecs extends StringUtils {
           WithOptionFields.schema,
           WithOptionFields(Some("s"), None),
           """{"a":"s"}""",
+          IgnoreEmptyCollectionsConfig,
         )
       },
       test("case class with backticked field name") {
@@ -659,6 +658,7 @@ private[play] trait WritesSpecs extends StringUtils {
           Subscription.schema,
           Subscription.Unlimited(None),
           """{"type":"unlimited"}""",
+          IgnoreEmptyCollectionsConfig,
         )
       },
       suite("with no discriminator")(

@@ -45,27 +45,31 @@ object Person {
 
 // derive Play JSON format from Schema
 import play.api.libs.json.Json
-implicit val codec: Format[Person] = PlayJsonCodec.schemaFormat(Person.schema)
 
-Json.parse("""{"name": "John", "age": 30}""").as[Person] // Person("John", 30)
-Json.stringify(Json.toJson(Person("Adam", 24))) // {"Adam": 24}
+val format: Format[Person] = PlayJsonCodec.schemaFormat(Person.schema)
+
+Json.parse("""{"name": "John", "age": 30}""").as[Person](format) // Person("John", 30)
+Json.stringify(Json.toJson(Person("Adam", 24)))(format) // {"Adam": 24}
 
 // use existing Play JSON format as BinaryCodec
 import zio.schema.codec.play.json.PlayJsonCodec.playJsonBinaryCodec
 
-playJsonBinaryCodec[Person](Json.format[Person]) // zio.schema.codec.BinaryCodec[Person]
+implicit val macroFormat: Format[Person] = Json.format[Person]
+playJsonBinaryCodec[Person] // zio.schema.codec.BinaryCodec[Person]
 
 // derive Play JSON BinaryCodec from schema
 import zio.schema.codec.play.json.PlayJsonCodec.schemaBasedBinaryCodec
 
-schemaBasedBinaryCodec[Person](PlayJsonCodec.Config.default) // zio.schema.codec.BinaryCodec[Person]
+schemaBasedBinaryCodec[Person] // zio.schema.codec.BinaryCodec[Person]
 ```
+
+Where each is also provided as implicit in `zio.schema.codec.play.json.PlayJsonCodec.implicits` package.
 
 ## Acknowledgements
 
 This library was heavily inspired by [zio-schema-json](https://github.com/zio/zio-schema/tree/main/zio-schema-json). Huge thanks to its original contributors for laying foundational ideas and implementation, which greatly influenced `zio-schema-play-json`.
 
-`zio-schema-play-json-jsoniter` builds upon approaches previously implemented in [jsoniter-scala-circe](https://github.com/plokhotnyuk/jsoniter-scala/tree/master/jsoniter-scala-circe) and [play-json-jsoniter](https://github.com/evolution-gaming/play-json-tools/tree/master/play-json-jsoniter) respectively. The decision to reimplement the above libraries in this project, rather than using `play-json-jsoniter` directly, was driven by the requirement to maintain compatibility with older versions of `play-json`. Once again, many thanks to the original authors.
+`zio-schema-play-json-jsoniter` builds upon approaches previously implemented in [jsoniter-scala-circe](https://github.com/plokhotnyuk/jsoniter-scala/tree/master/jsoniter-scala-circe) and [play-json-jsoniter](https://github.com/evolution-gaming/play-json-tools/tree/master/play-json-jsoniter) respectively. The decision to re-implement the above libraries in this project, rather than using `play-json-jsoniter` directly, was driven by the requirement to maintain compatibility with older versions of `play-json`. Once again, many thanks to the original authors.
 
 ## Disclaimer
 

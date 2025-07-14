@@ -4,6 +4,7 @@ import play.api.libs.json._
 import zio._
 import zio.schema._
 import zio.schema.codec.DecodeError
+import zio.schema.codec.play.json.PlayJsonCodec.{Configuration, ExplicitConfig}
 import zio.schema.codec.play.json._
 import zio.schema.codec.play.json.internal._
 import zio.test.TestAspect._
@@ -11,19 +12,18 @@ import zio.test._
 
 object PlayJsonCodecSpec extends ZIOSpecDefault with WritesSpecs with ReadsSpecs with WritesReadsSpecs {
 
-  override type Config = PlayJsonCodec.Config
+  override protected def IgnoreEmptyCollectionsConfig: Configuration       =
+    Configuration.default.withEmptyCollectionsIgnored.withNullValuesIgnored
+  override protected def KeepNullsAndEmptyColleciontsConfig: Configuration =
+    Configuration.default.copy(
+      explicitEmptyCollections = ExplicitConfig(decoding = true),
+      explicitNullValues = ExplicitConfig(decoding = true),
+    )
+  override protected def StreamingConfig: Configuration                    =
+    Configuration.default.copy(treatStreamsAsArrays = true)
 
-  override protected def DefaultConfig: PlayJsonCodec.Config = PlayJsonCodec.Config.default
-
-  override protected def IgnoreEmptyCollectionsConfig: Config       =
-    PlayJsonCodec.Config(ignoreEmptyCollections = true)
-  override protected def KeepNullsAndEmptyColleciontsConfig: Config =
-    PlayJsonCodec.Config(ignoreEmptyCollections = false, ignoreNullValues = false)
-  override protected def StreamingConfig: Config                    =
-    PlayJsonCodec.Config(ignoreEmptyCollections = false, treatStreamsAsArrays = true)
-
-  override protected def BinaryCodec[A]: (Schema[A], Config) => codec.BinaryCodec[A] =
-    (schema: Schema[A], config: PlayJsonCodec.Config) => PlayJsonCodec.schemaBasedBinaryCodec(config)(schema)
+  override protected def BinaryCodec[A]: (Schema[A], Configuration) => codec.BinaryCodec[A] =
+    (schema: Schema[A], config: Configuration) => PlayJsonCodec.schemaBasedBinaryCodec(config)(schema)
 
   def playJsonASTSuite(implicit schemaJsValue: Schema[JsValue]): Spec[Any, DecodeError] = suite("Play JSON AST")(
     suite("play.api.lib.json.JsValue")(
@@ -75,22 +75,30 @@ object PlayJsonCodecSpec extends ZIOSpecDefault with WritesSpecs with ReadsSpecs
           assertWrites(schemaJsValue, JsArray.empty, """[]""") &&
           assertReads(schemaJsValue, """[]""", JsArray.empty)
         },
-        test("writes and reads an array containing with null") {
+        test("writes and reads an array containing null") {
           assertWrites(
             schemaJsValue,
             JsArray(Seq(JsNull)),
             """[null]""",
-            PlayJsonCodec.Config(ignoreEmptyCollections = false, ignoreNullValues = false),
+            KeepNullsAndEmptyColleciontsConfig,
           ) &&
           assertReads(
             schemaJsValue,
             """[null]""",
             JsArray(Seq(JsNull)),
-            PlayJsonCodec.Config(ignoreEmptyCollections = false, ignoreNullValues = false),
+            KeepNullsAndEmptyColleciontsConfig,
           )
         },
-        test("writes an array containing without null") {
-          assertWrites(schemaJsValue, JsArray(Seq(JsNull)), """[]""")
+        test("writes an array containing null without null") {
+          assertWrites(
+            schemaJsValue,
+            JsArray(Seq(JsNull)),
+            """[]""",
+            Configuration.default.copy(
+              explicitEmptyCollections = ExplicitConfig(encoding = false),
+              explicitNullValues = ExplicitConfig(encoding = false),
+            ),
+          )
         },
         test("writes and reads any array of booleans") {
           check(Gen.listOf(Gen.boolean)) { bools =>
@@ -166,7 +174,10 @@ object PlayJsonCodecSpec extends ZIOSpecDefault with WritesSpecs with ReadsSpecs
             schemaJsValue,
             JsObject(Map("foo" -> JsString("bar"), "null" -> JsNull)),
             """{"foo":"bar","null":null}""",
-            PlayJsonCodec.Config(ignoreEmptyCollections = true, ignoreNullValues = false),
+            Configuration.default.copy(
+              explicitEmptyCollections = ExplicitConfig(encoding = true),
+              explicitNullValues = ExplicitConfig(encoding = true),
+            ),
           )
         },
         test("writes non-empty object without nulls") {
@@ -174,6 +185,10 @@ object PlayJsonCodecSpec extends ZIOSpecDefault with WritesSpecs with ReadsSpecs
             schemaJsValue,
             JsObject(Map("foo" -> JsString("bar"), "null" -> JsNull)),
             """{"foo":"bar"}""",
+            Configuration.default.copy(
+              explicitEmptyCollections = ExplicitConfig(encoding = false),
+              explicitNullValues = ExplicitConfig(encoding = false),
+            ),
           )
         },
         test("reads non-empty object with nulls") {
