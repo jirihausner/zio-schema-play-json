@@ -45,21 +45,25 @@ object Person {
 
 // derive Play JSON format from Schema
 import play.api.libs.json.Json
-implicit val codec: Format[Person] = PlayJsonCodec.schemaFormat(Person.schema)
 
-Json.parse("""{"name": "John", "age": 30}""").as[Person] // Person("John", 30)
-Json.stringify(Json.toJson(Person("Adam", 24))) // {"Adam": 24}
+val format: Format[Person] = PlayJsonCodec.schemaFormat(Person.schema)
+
+Json.parse("""{"name": "John", "age": 30}""").as[Person](format) // Person("John", 30)
+Json.stringify(Json.toJson(Person("Adam", 24)))(format) // {"Adam": 24}
 
 // use existing Play JSON format as BinaryCodec
 import zio.schema.codec.play.json.PlayJsonCodec.playJsonBinaryCodec
 
-playJsonBinaryCodec[Person](Json.format[Person]) // zio.schema.codec.BinaryCodec[Person]
+implicit val macroFormat: Format[Person] = Json.format[Person]
+playJsonBinaryCodec[Person] // zio.schema.codec.BinaryCodec[Person]
 
 // derive Play JSON BinaryCodec from schema
 import zio.schema.codec.play.json.PlayJsonCodec.schemaBasedBinaryCodec
 
-schemaBasedBinaryCodec[Person](PlayJsonCodec.Config.default) // zio.schema.codec.BinaryCodec[Person]
+schemaBasedBinaryCodec[Person] // zio.schema.codec.BinaryCodec[Person]
 ```
+
+Where each is also provided as implicit in `zio.schema.codec.play.json.PlayJsonCodec.implicits` package.
 
 ## Acknowledgements
 
