@@ -93,7 +93,7 @@ object PlayJsonJsoniterCodec {
   def schemaBasedBinaryCodec[A](config: Configuration)(implicit schema: Schema[A]): BinaryCodec[A] =
     new BinaryCodec[A] {
 
-      private lazy val r: Reads[A]  = schemaReads(schema)
+      private lazy val r: Reads[A]  = schemaReads(schema)(config)
       private lazy val w: Writes[A] = schemaWrites(schema)(config)
 
       override def encode(value: A): Chunk[Byte] = Chunk.fromArray(writeToArray(w.writes(value))(jsValueCodec))

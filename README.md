@@ -69,7 +69,7 @@ Where each is also provided as implicit in `zio.schema.codec.play.json.PlayJsonC
 
 This library was heavily inspired by [zio-schema-json](https://github.com/zio/zio-schema/tree/main/zio-schema-json). Huge thanks to its original contributors for laying foundational ideas and implementation, which greatly influenced `zio-schema-play-json`.
 
-`zio-schema-play-json-jsoniter` builds upon approaches previously implemented in [jsoniter-scala-circe](https://github.com/plokhotnyuk/jsoniter-scala/tree/master/jsoniter-scala-circe) and [play-json-jsoniter](https://github.com/evolution-gaming/play-json-tools/tree/master/play-json-jsoniter) respectively. The decision to re-implement the above libraries in this project, rather than using `play-json-jsoniter` directly, was driven by the requirement to maintain compatibility with older versions of `play-json`. Once again, many thanks to the original authors.
+`zio-schema-play-json-jsoniter` builds upon approaches previously implemented in [jsoniter-scala-circe](https://github.com/plokhotnyuk/jsoniter-scala/tree/master/jsoniter-scala-circe) and [play-json-jsoniter](https://github.com/evolution-gaming/play-json-tools/tree/master/play-json-jsoniter) respectively. The decision to reimplement the above libraries in this project, rather than using `play-json-jsoniter` directly, was driven by the requirement to maintain compatibility with older versions of `play-json`. Once again, many thanks to the original authors.
 
 ## Disclaimer
 
