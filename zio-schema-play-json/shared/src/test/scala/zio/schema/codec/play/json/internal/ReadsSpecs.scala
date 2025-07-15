@@ -6,6 +6,7 @@ import zio.schema._
 import zio.schema.annotation._
 import zio.schema.codec.DecodeError
 import zio.schema.codec.DecodeError.ReadError
+import zio.schema.codec.play.json.PlayJsonCodec.Configuration
 import zio.schema.codec.play.json.internal.Data._
 import zio.stream.ZStream
 import zio.test.Assertion._
@@ -17,18 +18,15 @@ import scala.collection.immutable.ListMap
 
 private[play] trait ReadsSpecs extends StringUtils {
 
-  type Config
+  protected def StreamingConfig: Configuration // should keep empty collections and treat streams as arrays
 
-  protected def DefaultConfig: Config
-  protected def StreamingConfig: Config // should keep empty collections and treat streams as arrays
-
-  protected def BinaryCodec[A]: (Schema[A], Config) => codec.BinaryCodec[A]
+  protected def BinaryCodec[A]: (Schema[A], Configuration) => codec.BinaryCodec[A]
 
   final protected def assertReadsToError[A](
     schema: Schema[A],
     json: CharSequence,
     error: JsError,
-    config: Config = DefaultConfig,
+    config: Configuration = Configuration.default,
     debug: Boolean = false,
   ): ZIO[Any, Nothing, TestResult] = {
     val exception = JsResult.Exception(error)
@@ -49,7 +47,7 @@ private[play] trait ReadsSpecs extends StringUtils {
     schema: Schema[A],
     json: CharSequence,
     errors: Seq[JsError],
-    config: Config = DefaultConfig,
+    config: Configuration = Configuration.default,
     debug: Boolean = false,
   ): ZIO[Any, Nothing, TestResult] = {
     val exceptions = errors.map { error =>
@@ -77,7 +75,7 @@ private[play] trait ReadsSpecs extends StringUtils {
     schema: Schema[A],
     json: CharSequence,
     value: A,
-    config: Config = DefaultConfig,
+    config: Configuration = Configuration.default,
     debug: Boolean = false,
   ): ZIO[Any, DecodeError, TestResult] = {
     val result = ZStream
@@ -97,7 +95,7 @@ private[play] trait ReadsSpecs extends StringUtils {
     schema: Schema[A],
     json: CharSequence,
     values: Chunk[A],
-    config: Config = DefaultConfig,
+    config: Configuration = Configuration.default,
     debug: Boolean = false,
   ): ZIO[Any, DecodeError, TestResult] = {
     val result = ZStream
@@ -342,6 +340,22 @@ private[play] trait ReadsSpecs extends StringUtils {
           Schema.map[Int, Value],
           """{"0":{"first":0,"second":true},"1":{"first":1,"second":false}}""",
           Map(0 -> Value(0, true), 1 -> Value(1, false)),
+        )
+      },
+      test("of uuid keys and values") {
+        check(Gen.uuid) { uuid =>
+          assertReads(
+            Schema.map[java.util.UUID, Value],
+            s"""{"$uuid":{"first":0,"second":true}}""",
+            Map(uuid -> Value(0, true)),
+          )
+        }
+      },
+      test("of simple enums and values") {
+        assertReads(
+          Schema.map[Color, Value](Schema[Color], Schema[Value]),
+          """{"Red":{"first":0,"second":true},"Blue":{"first":1,"second":false},"Green":{"first":2,"second":true}}""",
+          Map(Color.Red -> Value(0, true), Color.Blue -> Value(1, false), Color.Grass -> Value(2, true)),
         )
       },
       test("of simple keys and values where the key's schema is lazy") {
@@ -1159,11 +1173,11 @@ private[play] trait ReadsSpecs extends StringUtils {
           assertReadsMany(Schema[Int], "1 2 3 4 5", Chunk.fromIterable(1 to 5))
         },
         test("reads a stream with multiple integers separated by commas and other non JSON number characters") {
-          assertReadsMany(Schema[Int], "1 2, 3;;; 4x5", Chunk.fromIterable(1 to 5), debug = true)
-        } @@ ignore, // FIXME: fails but should work
+          assertReadsMany(Schema[Int], "1 2, 3;;; 4x5", Chunk.fromIterable(1 to 5))
+        },
         test("reads a stream with multiple integers encoded as an array") {
-          assertReadsMany(Schema[Int], "[1,2,3,4,5]", Chunk.fromIterable(1 to 5), StreamingConfig, debug = true)
-        } @@ ignore, // FIXME: fails but should work
+          assertReadsMany(Schema[Int], "[1,2,3,4,5]", Chunk.fromIterable(1 to 5), StreamingConfig)
+        },
         test("reads a stream with multiple integers encoded as an array with additional whitespace") {
           assertReadsMany(
             Schema[Int],
@@ -1173,9 +1187,8 @@ private[play] trait ReadsSpecs extends StringUtils {
               |4,   5]   """.stripMargin,
             Chunk.fromIterable(1 to 5),
             StreamingConfig,
-            debug = true,
           )
-        } @@ ignore, // FIXME: fails but should work
+        },
       ),
       suite("of booleans")(
         test("reads a stream with multiple booleans separated by newlines") {
@@ -1267,5 +1280,5 @@ private[play] trait ReadsSpecs extends StringUtils {
         },
       ),
     ),
-  )
+  ) @@ TestAspect.sequential
 }

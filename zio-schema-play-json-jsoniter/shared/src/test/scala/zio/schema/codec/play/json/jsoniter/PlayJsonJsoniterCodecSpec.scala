@@ -4,6 +4,7 @@ import com.github.plokhotnyuk.jsoniter_scala.core.writeToString
 import play.api.libs.json.{JsValue, Writes}
 import zio.durationInt
 import zio.schema._
+import zio.schema.codec.play.json.PlayJsonCodec.{Configuration, ExplicitConfig}
 import zio.schema.codec.play.json._
 import zio.schema.codec.play.json.internal._
 import zio.test.TestAspect._
@@ -11,19 +12,18 @@ import zio.test._
 
 object PlayJsonJsoniterCodecSpec extends ZIOSpecDefault with WritesSpecs with ReadsSpecs with WritesReadsSpecs {
 
-  override type Config = PlayJsonCodec.Config
+  override protected def IgnoreEmptyCollectionsConfig: Configuration       =
+    Configuration.default.withEmptyCollectionsIgnored.withNullValuesIgnored
+  override protected def KeepNullsAndEmptyColleciontsConfig: Configuration =
+    Configuration.default.copy(
+      explicitEmptyCollections = ExplicitConfig(decoding = true),
+      explicitNullValues = ExplicitConfig(decoding = true),
+    )
+  override protected def StreamingConfig: Configuration                    =
+    Configuration.default.copy(treatStreamsAsArrays = true)
 
-  override protected def DefaultConfig: PlayJsonCodec.Config = PlayJsonCodec.Config.default
-
-  override protected def IgnoreEmptyCollectionsConfig: Config       =
-    PlayJsonCodec.Config(ignoreEmptyCollections = true)
-  override protected def KeepNullsAndEmptyColleciontsConfig: Config =
-    PlayJsonCodec.Config(ignoreEmptyCollections = false, ignoreNullValues = false)
-  override protected def StreamingConfig: PlayJsonCodec.Config      =
-    PlayJsonCodec.Config(ignoreEmptyCollections = false, treatStreamsAsArrays = true)
-
-  override protected def BinaryCodec[A]: (Schema[A], Config) => codec.BinaryCodec[A] =
-    (schema: Schema[A], config: PlayJsonCodec.Config) => PlayJsonJsoniterCodec.schemaBasedBinaryCodec(config)(schema)
+  override protected def BinaryCodec[A]: (Schema[A], Configuration) => codec.BinaryCodec[A] =
+    (schema: Schema[A], config: Configuration) => PlayJsonJsoniterCodec.schemaBasedBinaryCodec(config)(schema)
 
   import zio.schema.codec.play.json.jsoniter.schemaJsValue
 
