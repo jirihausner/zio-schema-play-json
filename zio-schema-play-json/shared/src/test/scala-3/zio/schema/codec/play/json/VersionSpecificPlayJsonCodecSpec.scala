@@ -66,6 +66,18 @@ trait VersionSpecificCodecSpec extends ZIOSpecDefault  {
         val value = Map("a" -> 1, "b" -> "toto", "c" -> true, "d" -> null)
         assert(Json.parse(json).as(using schemaFormat(schema)))(equalTo(value)) &&
         assert(Json.stringify(schemaFormat(schema).writes(value)))(equalTo(json))
+      },
+      test("enum with case name annotations") {
+        val schema1 = Schema.chunk(DeriveSchema.gen[Foo])
+        val schema2 = Schema.chunk(DeriveSchema.gen[Foo2])
+        val json1 = """["bar","baz","qux","Quux"]"""
+        val json2 = """["Bar","baz","qux"]"""
+        val value1 = Chunk[Foo](Foo.Bar, Foo.Baz, Foo.Qux, Foo.Quux)
+        val value2 = Chunk[Foo2](Foo2.Bar, Foo2.Baz, Foo2.Qux)
+        assert(Json.parse(json1).as(using schemaFormat(schema1)))(equalTo(value1)) &&
+        assert(Json.stringify(schemaFormat(schema1).writes(value1)))(equalTo(json1)) &&
+        assert(Json.parse(json2).as(using schemaFormat(schema2)))(equalTo(value2)) &&
+        assert(Json.stringify(schemaFormat(schema2).writes(value2)))(equalTo(json2))
       }
     )
   )
@@ -75,6 +87,17 @@ trait VersionSpecificCodecSpec extends ZIOSpecDefault  {
   object WithDefaultValue {
     implicit lazy val schema: Schema[WithDefaultValue] = DeriveSchema.gen[WithDefaultValue]
   }
+
+  enum Foo:
+    @caseName("bar") @caseName("xxx") case Bar
+    @caseName("baz") case Baz
+    @caseName("qux") case Qux
+    case Quux
+
+  enum Foo2:
+    case Bar
+    @caseName("baz") @caseName("xxx") case Baz
+    @caseName("qux") case Qux
 
   enum ErrorGroup1:
     case Err1
