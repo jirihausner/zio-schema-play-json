@@ -479,16 +479,32 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  def writesField[B](schema: Schema[B]): Option[KeyWrites[B]] = schema match {
-    case Schema.Primitive(StandardType.StringType, _) => Some(writesStringKey)
-    case Schema.Primitive(StandardType.CharType, _)   => Some(writesCharKey)
-    case Schema.Primitive(StandardType.BoolType, _)   => Some(writesBooleanKey)
-    case Schema.Primitive(StandardType.ByteType, _)   => Some(writesByteKey)
-    case Schema.Primitive(StandardType.ShortType, _)  => Some(writesShortKey)
-    case Schema.Primitive(StandardType.IntType, _)    => Some(writesIntKey)
-    case Schema.Primitive(StandardType.LongType, _)   => Some(writesLongKey)
-    case Schema.Transform(c, _, g, a, _)              =>
-      writesField(a.foldLeft(c)((s, a) => s.annotate(a))).map { w =>
+  val writesUUIDKey: KeyWrites[UUID] = new KeyWrites[UUID] {
+    def writeKey(key: UUID): String = key.toString()
+  }
+  val readsUUIDKey: KeyReads[UUID]   = new KeyReads[UUID] {
+    def readKey(key: String): JsResult[UUID] = {
+      try {
+        JsSuccess(UUID.fromString(key))
+      } catch {
+        case _: IllegalArgumentException => JsError("error.expected.uuid")
+      }
+    }
+  }
+
+  def writesField[B](schema: Schema[B], config: PlayJsonCodec.Configuration): Option[KeyWrites[B]] = schema match {
+    case Schema.Primitive(StandardType.StringType, _)                                    => Some(writesStringKey)
+    case Schema.Primitive(StandardType.CharType, _)                                      => Some(writesCharKey)
+    case Schema.Primitive(StandardType.BoolType, _)                                      => Some(writesBooleanKey)
+    case Schema.Primitive(StandardType.ByteType, _)                                      => Some(writesByteKey)
+    case Schema.Primitive(StandardType.ShortType, _)                                     => Some(writesShortKey)
+    case Schema.Primitive(StandardType.IntType, _)                                       => Some(writesIntKey)
+    case Schema.Primitive(StandardType.LongType, _)                                      => Some(writesLongKey)
+    case Schema.Primitive(StandardType.UUIDType, _)                                      => Some(writesUUIDKey)
+    case schema: Schema.Enum[_] if schema.annotations.exists(_.isInstanceOf[simpleEnum]) =>
+      Some(new KeyWrites[B] { def writeKey(key: B): String = caseMap(schema, config)(key) })
+    case Schema.Transform(c, _, g, a, _)                                                 =>
+      writesField(a.foldLeft(c)((s, a) => s.annotate(a)), config).map { w =>
         new KeyWrites[B] {
           def writeKey(b: B): String = g(b) match {
             case Left(reason) => throw new RuntimeException(s"Failed to write key $b: $reason")
@@ -496,20 +512,42 @@ private[play] trait Formats extends PlayJsonCompat {
           }
         }
       }
-    case Schema.Lazy(inner)                           => writesField(inner())
-    case _                                            => None
+    case Schema.Lazy(inner)                                                              => writesField(inner(), config)
+    case _                                                                               => None
   }
 
-  def readsField[A](schema: Schema[A]): Option[KeyReads[A]] = schema match {
-    case Schema.Primitive(StandardType.StringType, _) => Some(readsStringKey)
-    case Schema.Primitive(StandardType.CharType, _)   => Some(readsCharKey)
-    case Schema.Primitive(StandardType.BoolType, _)   => Some(readsBooleanKey)
-    case Schema.Primitive(StandardType.ByteType, _)   => Some(readsByteKey)
-    case Schema.Primitive(StandardType.ShortType, _)  => Some(readsShortKey)
-    case Schema.Primitive(StandardType.IntType, _)    => Some(readsIntKey)
-    case Schema.Primitive(StandardType.LongType, _)   => Some(readsLongKey)
-    case Schema.Transform(c, f, _, a, _)              =>
-      readsField(a.foldLeft(c)((s, a) => s.annotate(a))).map { reads =>
+  def readsField[A](schema: Schema[A], config: PlayJsonCodec.Configuration): Option[KeyReads[A]] = schema match {
+    case Schema.Primitive(StandardType.StringType, _)                                    => Some(readsStringKey)
+    case Schema.Primitive(StandardType.CharType, _)                                      => Some(readsCharKey)
+    case Schema.Primitive(StandardType.BoolType, _)                                      => Some(readsBooleanKey)
+    case Schema.Primitive(StandardType.ByteType, _)                                      => Some(readsByteKey)
+    case Schema.Primitive(StandardType.ShortType, _)                                     => Some(readsShortKey)
+    case Schema.Primitive(StandardType.IntType, _)                                       => Some(readsIntKey)
+    case Schema.Primitive(StandardType.LongType, _)                                      => Some(readsLongKey)
+    case Schema.Primitive(StandardType.UUIDType, _)                                      => Some(readsUUIDKey)
+    case schema: Schema.Enum[_] if schema.annotations.exists(_.isInstanceOf[simpleEnum]) =>
+      Some {
+        val caseNameAliases = Formats.caseNameAliases(schema, config)
+
+        new KeyReads[A] {
+
+          val cases = new util.HashMap[String, A](caseNameAliases.size << 1)
+          caseNameAliases.foreach { case (name, case_) =>
+            cases.put(format(name, config), case_.schema.asInstanceOf[Schema.CaseClass0[A]].defaultConstruct())
+          }
+
+          def readKey(key: String): JsResult[A] = {
+            if (key.exists(_.isWhitespace)) JsError(s"error.expected.validenumstring")
+            else {
+              val result = cases.get(key)
+              if (result == null) JsError(s"error.unrecognized.subtype.$key")
+              else JsSuccess(result)
+            }
+          }
+        }
+      }
+    case Schema.Transform(c, f, _, a, _)                                                 =>
+      readsField(a.foldLeft(c)((s, a) => s.annotate(a)), config).map { reads =>
         reads.map { key =>
           f(key) match {
             case Left(reason) => throw new RuntimeException(s"Failed to read key $a: $reason")
@@ -517,15 +555,15 @@ private[play] trait Formats extends PlayJsonCompat {
           }
         }
       }
-    case Schema.Lazy(inner)                           => readsField(inner())
-    case _                                            => None
+    case Schema.Lazy(inner)                                                              => readsField(inner(), config)
+    case _                                                                               => None
   }
 
   def writesMap[K, V](
     ks: Schema[K],
     vs: Schema[V],
     config: PlayJsonCodec.Configuration,
-  ): Writes[Map[K, V]] = writesField(ks) match {
+  ): Writes[Map[K, V]] = writesField(ks, config) match {
     case Some(keyWrites) =>
       implicit val kw: KeyWrites[K] = keyWrites
       implicit val vw: Writes[V]    = writesSchema(vs, config)
@@ -536,7 +574,7 @@ private[play] trait Formats extends PlayJsonCompat {
   }
 
   def readsMap[K, V](ks: Schema[K], vs: Schema[V], config: PlayJsonCodec.Configuration): Reads[Map[K, V]] =
-    readsField(ks) match {
+    readsField(ks, config) match {
       case Some(keyReads) =>
         implicit val kr: KeyReads[K] = keyReads
         implicit val vr: Reads[V]    = readsSchema(vs, config)
@@ -628,15 +666,32 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
+  private def format(caseName: String, config: PlayJsonCodec.Configuration): String =
+    if (config.discriminatorFormat == NameFormat.Identity) caseName
+    else config.discriminatorFormat(caseName)
+
+  protected def caseNameAliases[Z](parentSchema: Schema.Enum[Z], config: PlayJsonCodec.Configuration) = {
+    val caseNameAliases = new mutable.HashMap[String, Schema.Case[Z, Any]]
+    parentSchema.cases.foreach { case_ =>
+      val schema = case_.asInstanceOf[Schema.Case[Z, Any]]
+      caseNameAliases.put(format(case_.caseName, config), schema)
+      case_.caseNameAliases.foreach(a => caseNameAliases.put(a, schema))
+    }
+    caseNameAliases
+  }
+
+  private def caseMap[Z](schema: Schema.Enum[Z], config: PlayJsonCodec.Configuration): Map[Z, String] =
+    schema.nonTransientCases
+      .map(case_ =>
+        case_.schema.asInstanceOf[Schema.CaseClass0[Z]].defaultConstruct() ->
+          format(case_.caseName, config),
+      )
+      .toMap
+
   def writesEnum[Z](schema: Schema.Enum[Z], config: PlayJsonCodec.Configuration): Writes[Z] = {
     // if all cases are CaseClass0, encode as a String
     if (schema.annotations.exists(_.isInstanceOf[simpleEnum])) {
-      Writes.StringWrites.contramap[Z] {
-        schema.nonTransientCases.map { case_ =>
-          case_.schema.asInstanceOf[Schema.CaseClass0[Z]].defaultConstruct() ->
-            case_.caseName
-        }.toMap
-      }
+      Writes.StringWrites.contramap[Z](caseMap(schema, config))
     } else {
       new Writes[Z] {
 
@@ -644,8 +699,9 @@ private[play] trait Formats extends PlayJsonCompat {
           if (schema.noDiscriminator) None
           else schema.annotations.collectFirst { case d: discriminatorName => d.tag }
         val cases                = schema.nonTransientCases.toArray
+        val names                = cases.map { case_ => format(case_.caseName, config) }
         val writers              = cases.map { case_ =>
-          val discriminatorTuple = discriminatorName.map(_ -> case_.caseName)
+          val discriminatorTuple = discriminatorName.map(_ -> format(case_.caseName, config))
           writesSchema(case_.schema.asInstanceOf[Schema[Any]], config, discriminatorTuple)
         }
         val doJsonObjectWrapping = discriminatorName.isEmpty && !schema.noDiscriminator
@@ -657,7 +713,7 @@ private[play] trait Formats extends PlayJsonCompat {
             if (case_.isCase(value)) {
               val result = writers(i).writes(case_.deconstruct(value))
               return {
-                if (doJsonObjectWrapping) Json.obj(case_.caseName -> result)
+                if (doJsonObjectWrapping) Json.obj(names(i) -> result)
                 else result
               }
             }
@@ -671,23 +727,15 @@ private[play] trait Formats extends PlayJsonCompat {
 
   def readsEnum[Z](parentSchema: Schema.Enum[Z], config: PlayJsonCodec.Configuration): Reads[Z] = {
 
-    def format(caseName: String): String =
-      if (config.discriminatorFormat == NameFormat.Identity) caseName
-      else config.discriminatorFormat(caseName)
-
-    val caseNameAliases = new mutable.HashMap[String, Schema.Case[Z, Any]]
-    parentSchema.cases.foreach { case_ =>
-      val schema = case_.asInstanceOf[Schema.Case[Z, Any]]
-      caseNameAliases.put(format(schema.caseName), schema)
-      schema.caseNameAliases.foreach { alias => caseNameAliases.put(alias, schema) }
-    }
+    val caseNameAliases: mutable.HashMap[String, Schema.Case[Z, Any]] =
+      Formats.caseNameAliases(parentSchema, config)
 
     if (parentSchema.cases.forall(_.schema.isInstanceOf[Schema.CaseClass0[_]])) { // if all cases are CaseClass0, decode as String
       new Reads[Z] {
 
         val cases = new util.HashMap[String, Z](caseNameAliases.size << 1)
         caseNameAliases.foreach { case (name, case_) =>
-          cases.put(format(name), case_.schema.asInstanceOf[Schema.CaseClass0[Z]].defaultConstruct())
+          cases.put(format(name, config), case_.schema.asInstanceOf[Schema.CaseClass0[Z]].defaultConstruct())
         }
 
         def reads(json: JsValue): JsResult[Z] = {
@@ -726,7 +774,7 @@ private[play] trait Formats extends PlayJsonCompat {
 
             val cases = new util.HashMap[String, Reads[Any]](caseNameAliases.size << 1)
             caseNameAliases.foreach { case (name, case_) =>
-              cases.put(format(name), readsSchema(case_.schema, config, discriminator))
+              cases.put(format(name, config), readsSchema(case_.schema, config, discriminator))
             }
 
             def reads(json: JsValue): JsResult[Z] = json match {
@@ -749,7 +797,7 @@ private[play] trait Formats extends PlayJsonCompat {
 
             val cases = new util.HashMap[String, Reads[Any]](caseNameAliases.size << 1)
             caseNameAliases.foreach { case (name, case_) =>
-              cases.put(format(name), readsSchema(case_.schema, config, discriminator))
+              cases.put(format(name, config), readsSchema(case_.schema, config, discriminator))
             }
 
             def reads(json: JsValue): JsResult[Z] = json match {
