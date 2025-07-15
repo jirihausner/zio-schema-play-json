@@ -342,6 +342,22 @@ private[play] trait ReadsSpecs extends StringUtils {
           Map(0 -> Value(0, true), 1 -> Value(1, false)),
         )
       },
+      test("of uuid keys and values") {
+        check(Gen.uuid) { uuid =>
+          assertReads(
+            Schema.map[java.util.UUID, Value],
+            s"""{"$uuid":{"first":0,"second":true}}""",
+            Map(uuid -> Value(0, true)),
+          )
+        }
+      },
+      test("of simple enums and values") {
+        assertReads(
+          Schema.map[Color, Value](Schema[Color], Schema[Value]),
+          """{"Red":{"first":0,"second":true},"Blue":{"first":1,"second":false},"Green":{"first":2,"second":true}}""",
+          Map(Color.Red -> Value(0, true), Color.Blue -> Value(1, false), Color.Grass -> Value(2, true)),
+        )
+      },
       test("of simple keys and values where the key's schema is lazy") {
         assertReads(
           Schema.map[Int, Value](Schema.defer(Schema[Int]), Schema[Value]),
