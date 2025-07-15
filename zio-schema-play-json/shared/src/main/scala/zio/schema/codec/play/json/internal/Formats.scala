@@ -265,7 +265,7 @@ private[play] trait Formats extends PlayJsonCompat {
 
   private case class WritesKey[A](
     schema: Schema[A],
-    config: PlayJsonCodec.Config,
+    config: PlayJsonCodec.Configuration,
     discriminatorTuple: DiscriminatorTuple,
   ) {
     override val hashCode: Int = System.identityHashCode(schema) ^ config.hashCode ^ discriminatorTuple.hashCode
@@ -275,10 +275,14 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  private case class ReadsKey[A](schema: Schema[A], discriminator: Option[String]) {
-    override val hashCode: Int             = System.identityHashCode(schema) ^ discriminator.hashCode
+  private case class ReadsKey[A](
+    schema: Schema[A],
+    config: PlayJsonCodec.Configuration,
+    discriminator: Option[String],
+  ) {
+    override val hashCode: Int             = System.identityHashCode(schema) ^ config.hashCode ^ discriminator.hashCode
     override def equals(obj: Any): Boolean = obj match {
-      case x: ReadsKey[_] => (x.schema eq schema) && x.discriminator == discriminator
+      case x: ReadsKey[_] => (x.schema eq schema) && x.config == config && x.discriminator == discriminator
       case _              => false
     }
   }
@@ -288,7 +292,7 @@ private[play] trait Formats extends PlayJsonCompat {
 
   def writesSchema[A](
     schema: Schema[A],
-    config: PlayJsonCodec.Config,
+    config: PlayJsonCodec.Configuration,
     discriminatorTuple: DiscriminatorTuple = None,
   ): Writes[A] = {
     val key               = WritesKey(schema, config, discriminatorTuple)
@@ -300,11 +304,15 @@ private[play] trait Formats extends PlayJsonCompat {
     writes
   }
 
-  def readsSchema[A](schema: Schema[A], discriminator: Option[String] = None): Reads[A] = {
-    val key   = ReadsKey(schema, discriminator)
+  def readsSchema[A](
+    schema: Schema[A],
+    config: PlayJsonCodec.Configuration,
+    discriminator: Option[String] = None,
+  ): Reads[A] = {
+    val key   = ReadsKey(schema, config, discriminator)
     var reads = readers.get(key).asInstanceOf[Reads[A]]
     if (reads eq null) {
-      reads = readsSchemaSlow(schema, discriminator)
+      reads = readsSchemaSlow(schema, config, discriminator)
       readers.put(key, reads)
     }
     reads
@@ -312,7 +320,7 @@ private[play] trait Formats extends PlayJsonCompat {
 
   def writesSchemaSlow[A](
     schema: Schema[A],
-    config: PlayJsonCodec.Config,
+    config: PlayJsonCodec.Configuration,
     discriminatorTuple: DiscriminatorTuple = None,
   ): Writes[A] = schema match {
     case Schema.Primitive(standardType, _)           => writesPrimitive(standardType)
@@ -337,73 +345,77 @@ private[play] trait Formats extends PlayJsonCompat {
       throw new Exception(s"A captured schema is null, most likely due to wrong field initialization order")
   }
 
-  def readsSchemaSlow[A](schema: Schema[A], discriminator: Option[String] = None): Reads[A] = schema match {
-    case Schema.Primitive(standardType, _)                      => readsPrimitive(standardType)
-    case Schema.Optional(codec, _)                              => Reads.optionWithNull(readsSchema(codec))
-    case Schema.Tuple2(left, right, _)                          => Reads.Tuple2R(readsSchema(left), readsSchema(right))
-    case Schema.Sequence(codec, f, _, _, _)                     => readsChunk(readsSchema(codec)).map(f)
-    case s @ Schema.NonEmptySequence(codec, _, _, _, _)         => readsChunk(readsSchema(codec)).map(s.fromChunk)
-    case Schema.Map(ks, vs, _)                                  => readsMap(ks, vs)
-    case Schema.NonEmptyMap(ks, vs, _)                          =>
-      readsMap(ks, vs).flatMapResult { map =>
+  def readsSchemaSlow[A](
+    schema: Schema[A],
+    config: PlayJsonCodec.Configuration,
+    discriminator: Option[String] = None,
+  ): Reads[A] = schema match {
+    case Schema.Primitive(standardType, _)  => readsPrimitive(standardType)
+    case Schema.Optional(codec, _)          => Reads.optionWithNull(readsSchema(codec, config))
+    case Schema.Tuple2(left, right, _)      => Reads.Tuple2R(readsSchema(left, config), readsSchema(right, config))
+    case Schema.Sequence(codec, f, _, _, _) => readsChunk(readsSchema(codec, config)).map(f)
+    case s @ Schema.NonEmptySequence(codec, _, _, _, _) => readsChunk(readsSchema(codec, config)).map(s.fromChunk)
+    case Schema.Map(ks, vs, _)                          => readsMap(ks, vs, config)
+    case Schema.NonEmptyMap(ks, vs, _)                  =>
+      readsMap(ks, vs, config).flatMapResult { map =>
         NonEmptyMap.fromMapOption(map) match {
           case Some(res) => JsSuccess(res)
           case None      => JsError("Expected a non-empty map")
         }
       }
-    case Schema.Set(s, _)                                       => Reads.set(readsSchema(s))
-    case Schema.Transform(c, f, _, a, _)                        =>
-      readsSchema(a.foldLeft(c)((s, a) => s.annotate(a)), discriminator).flatMapResult { a =>
+    case Schema.Set(s, _)                               => Reads.set(readsSchema(s, config))
+    case Schema.Transform(c, f, _, a, _)                =>
+      readsSchema(a.foldLeft(c)((s, a) => s.annotate(a)), config, discriminator).flatMapResult { a =>
         f(a) match {
           case Left(reason) => JsError(reason)
           case Right(value) => JsSuccess(value)
         }
       }
-    case Schema.Fail(message, _)                                => readsFail(message)
-    case Schema.Either(left, right, _)                          => readsEither(readsSchema(left), readsSchema(right))
-    case s @ Schema.Fallback(_, _, _, _)                        => readsFallback(s)
-    case s: Schema.Lazy[_]                                      => readsSuspend(readsSchema(s.schema, discriminator))
-    case s: Schema.GenericRecord                                => readsRecord(s, discriminator)
-    case s @ Schema.CaseClass0(_, _, _)                         => readsCaseClass0(s, discriminator)
-    case s @ Schema.CaseClass1(_, _, _, _)                      => readsCaseClass1(s, discriminator)
-    case s @ Schema.CaseClass2(_, _, _, _, _)                   => readsCaseClass2(s, discriminator)
-    case s @ Schema.CaseClass3(_, _, _, _, _, _)                => readsCaseClass3(s, discriminator)
-    case s @ Schema.CaseClass4(_, _, _, _, _, _, _)             => readsCaseClass4(s, discriminator)
-    case s @ Schema.CaseClass5(_, _, _, _, _, _, _, _)          => readsCaseClass5(s, discriminator)
-    case s @ Schema.CaseClass6(_, _, _, _, _, _, _, _, _)       => readsCaseClass6(s, discriminator)
-    case s @ Schema.CaseClass7(_, _, _, _, _, _, _, _, _, _)    => readsCaseClass7(s, discriminator)
-    case s @ Schema.CaseClass8(_, _, _, _, _, _, _, _, _, _, _) => readsCaseClass8(s, discriminator)
-    case s @ Schema.CaseClass9(_, _, _, _, _, _, _, _, _, _, _, _)              => readsCaseClass9(s, discriminator)
-    case s @ Schema.CaseClass10(_, _, _, _, _, _, _, _, _, _, _, _, _)          => readsCaseClass10(s, discriminator)
-    case s @ Schema.CaseClass11(_, _, _, _, _, _, _, _, _, _, _, _, _, _)       =>
-      readsCaseClass11(s, discriminator)
-    case s @ Schema.CaseClass12(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _)    =>
-      readsCaseClass12(s, discriminator)
-    case s @ Schema.CaseClass13(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
-      readsCaseClass13(s, discriminator)
+    case Schema.Fail(message, _)                        => readsFail(message)
+    case Schema.Either(left, right, _)           => readsEither(readsSchema(left, config), readsSchema(right, config))
+    case s @ Schema.Fallback(_, _, _, _)         => readsFallback(s, config)
+    case s: Schema.Lazy[_]                       => readsSuspend(readsSchema(s.schema, config, discriminator))
+    case s: Schema.GenericRecord                 => readsRecord(s, config, discriminator)
+    case s @ Schema.CaseClass0(_, _, _)          => readsCaseClass0(s, config, discriminator)
+    case s @ Schema.CaseClass1(_, _, _, _)       => readsCaseClass1(s, config, discriminator)
+    case s @ Schema.CaseClass2(_, _, _, _, _)    => readsCaseClass2(s, config, discriminator)
+    case s @ Schema.CaseClass3(_, _, _, _, _, _) => readsCaseClass3(s, config, discriminator)
+    case s @ Schema.CaseClass4(_, _, _, _, _, _, _)                       => readsCaseClass4(s, config, discriminator)
+    case s @ Schema.CaseClass5(_, _, _, _, _, _, _, _)                    => readsCaseClass5(s, config, discriminator)
+    case s @ Schema.CaseClass6(_, _, _, _, _, _, _, _, _)                 => readsCaseClass6(s, config, discriminator)
+    case s @ Schema.CaseClass7(_, _, _, _, _, _, _, _, _, _)              => readsCaseClass7(s, config, discriminator)
+    case s @ Schema.CaseClass8(_, _, _, _, _, _, _, _, _, _, _)           => readsCaseClass8(s, config, discriminator)
+    case s @ Schema.CaseClass9(_, _, _, _, _, _, _, _, _, _, _, _)        => readsCaseClass9(s, config, discriminator)
+    case s @ Schema.CaseClass10(_, _, _, _, _, _, _, _, _, _, _, _, _)    => readsCaseClass10(s, config, discriminator)
+    case s @ Schema.CaseClass11(_, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
+      readsCaseClass11(s, config, discriminator)
+    case s @ Schema.CaseClass12(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                      =>
+      readsCaseClass12(s, config, discriminator)
+    case s @ Schema.CaseClass13(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                   =>
+      readsCaseClass13(s, config, discriminator)
     case s @ Schema
           .CaseClass14(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
-      readsCaseClass14(s, discriminator)
+      readsCaseClass14(s, config, discriminator)
     case s @ Schema
           .CaseClass15(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
-      readsCaseClass15(s, discriminator)
-    case s @ Schema.CaseClass16(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
-      readsCaseClass16(s, discriminator)
+      readsCaseClass15(s, config, discriminator)
+    case s @ Schema.CaseClass16(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)          =>
+      readsCaseClass16(s, config, discriminator)
     case s @ Schema.CaseClass17(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)       =>
-      readsCaseClass17(s, discriminator)
+      readsCaseClass17(s, config, discriminator)
     case s @ Schema.CaseClass18(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)    =>
-      readsCaseClass18(s, discriminator)
+      readsCaseClass18(s, config, discriminator)
     case s @ Schema.CaseClass19(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
-      readsCaseClass19(s, discriminator)
+      readsCaseClass19(s, config, discriminator)
     case s @ Schema.CaseClass20(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
-      readsCaseClass20(s, discriminator)
+      readsCaseClass20(s, config, discriminator)
     case s @ Schema.CaseClass21(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
-      readsCaseClass21(s, discriminator)
+      readsCaseClass21(s, config, discriminator)
     case s @ Schema.CaseClass22(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
-      readsCaseClass22(s, discriminator)
-    case s: Schema.Enum[A]                                                                        => readsEnum(s)
-    case s: Schema.Dynamic                                                                        => readsDynamic(s)
-    case _ => throw new Exception(s"Missing a handler for decoding of schema ${schema.toString()}.")
+      readsCaseClass22(s, config, discriminator)
+    case s: Schema.Enum[A] => readsEnum(s, config)
+    case s: Schema.Dynamic => readsDynamic(s, config)
+    case _                 => throw new Exception(s"Missing a handler for decoding of schema ${schema.toString()}.")
   }
 
   val writesStringKey: KeyWrites[String] =
@@ -467,16 +479,32 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  def writesField[B](schema: Schema[B]): Option[KeyWrites[B]] = schema match {
-    case Schema.Primitive(StandardType.StringType, _) => Some(writesStringKey)
-    case Schema.Primitive(StandardType.CharType, _)   => Some(writesCharKey)
-    case Schema.Primitive(StandardType.BoolType, _)   => Some(writesBooleanKey)
-    case Schema.Primitive(StandardType.ByteType, _)   => Some(writesByteKey)
-    case Schema.Primitive(StandardType.ShortType, _)  => Some(writesShortKey)
-    case Schema.Primitive(StandardType.IntType, _)    => Some(writesIntKey)
-    case Schema.Primitive(StandardType.LongType, _)   => Some(writesLongKey)
-    case Schema.Transform(c, _, g, a, _)              =>
-      writesField(a.foldLeft(c)((s, a) => s.annotate(a))).map { w =>
+  val writesUUIDKey: KeyWrites[UUID] = new KeyWrites[UUID] {
+    def writeKey(key: UUID): String = key.toString()
+  }
+  val readsUUIDKey: KeyReads[UUID]   = new KeyReads[UUID] {
+    def readKey(key: String): JsResult[UUID] = {
+      try {
+        JsSuccess(UUID.fromString(key))
+      } catch {
+        case _: IllegalArgumentException => JsError("error.expected.uuid")
+      }
+    }
+  }
+
+  def writesField[B](schema: Schema[B], config: PlayJsonCodec.Configuration): Option[KeyWrites[B]] = schema match {
+    case Schema.Primitive(StandardType.StringType, _)                                    => Some(writesStringKey)
+    case Schema.Primitive(StandardType.CharType, _)                                      => Some(writesCharKey)
+    case Schema.Primitive(StandardType.BoolType, _)                                      => Some(writesBooleanKey)
+    case Schema.Primitive(StandardType.ByteType, _)                                      => Some(writesByteKey)
+    case Schema.Primitive(StandardType.ShortType, _)                                     => Some(writesShortKey)
+    case Schema.Primitive(StandardType.IntType, _)                                       => Some(writesIntKey)
+    case Schema.Primitive(StandardType.LongType, _)                                      => Some(writesLongKey)
+    case Schema.Primitive(StandardType.UUIDType, _)                                      => Some(writesUUIDKey)
+    case schema: Schema.Enum[_] if schema.annotations.exists(_.isInstanceOf[simpleEnum]) =>
+      Some(new KeyWrites[B] { def writeKey(key: B): String = caseMap(schema, config)(key) })
+    case Schema.Transform(c, _, g, a, _)                                                 =>
+      writesField(a.foldLeft(c)((s, a) => s.annotate(a)), config).map { w =>
         new KeyWrites[B] {
           def writeKey(b: B): String = g(b) match {
             case Left(reason) => throw new RuntimeException(s"Failed to write key $b: $reason")
@@ -484,20 +512,42 @@ private[play] trait Formats extends PlayJsonCompat {
           }
         }
       }
-    case Schema.Lazy(inner)                           => writesField(inner())
-    case _                                            => None
+    case Schema.Lazy(inner)                                                              => writesField(inner(), config)
+    case _                                                                               => None
   }
 
-  def readsField[A](schema: Schema[A]): Option[KeyReads[A]] = schema match {
-    case Schema.Primitive(StandardType.StringType, _) => Some(readsStringKey)
-    case Schema.Primitive(StandardType.CharType, _)   => Some(readsCharKey)
-    case Schema.Primitive(StandardType.BoolType, _)   => Some(readsBooleanKey)
-    case Schema.Primitive(StandardType.ByteType, _)   => Some(readsByteKey)
-    case Schema.Primitive(StandardType.ShortType, _)  => Some(readsShortKey)
-    case Schema.Primitive(StandardType.IntType, _)    => Some(readsIntKey)
-    case Schema.Primitive(StandardType.LongType, _)   => Some(readsLongKey)
-    case Schema.Transform(c, f, _, a, _)              =>
-      readsField(a.foldLeft(c)((s, a) => s.annotate(a))).map { reads =>
+  def readsField[A](schema: Schema[A], config: PlayJsonCodec.Configuration): Option[KeyReads[A]] = schema match {
+    case Schema.Primitive(StandardType.StringType, _)                                    => Some(readsStringKey)
+    case Schema.Primitive(StandardType.CharType, _)                                      => Some(readsCharKey)
+    case Schema.Primitive(StandardType.BoolType, _)                                      => Some(readsBooleanKey)
+    case Schema.Primitive(StandardType.ByteType, _)                                      => Some(readsByteKey)
+    case Schema.Primitive(StandardType.ShortType, _)                                     => Some(readsShortKey)
+    case Schema.Primitive(StandardType.IntType, _)                                       => Some(readsIntKey)
+    case Schema.Primitive(StandardType.LongType, _)                                      => Some(readsLongKey)
+    case Schema.Primitive(StandardType.UUIDType, _)                                      => Some(readsUUIDKey)
+    case schema: Schema.Enum[_] if schema.annotations.exists(_.isInstanceOf[simpleEnum]) =>
+      Some {
+        val caseNameAliases = Formats.caseNameAliases(schema, config)
+
+        new KeyReads[A] {
+
+          val cases = new util.HashMap[String, A](caseNameAliases.size << 1)
+          caseNameAliases.foreach { case (name, case_) =>
+            cases.put(format(name, config), case_.schema.asInstanceOf[Schema.CaseClass0[A]].defaultConstruct())
+          }
+
+          def readKey(key: String): JsResult[A] = {
+            if (key.exists(_.isWhitespace)) JsError(s"error.expected.validenumstring")
+            else {
+              val result = cases.get(key)
+              if (result == null) JsError(s"error.unrecognized.subtype.$key")
+              else JsSuccess(result)
+            }
+          }
+        }
+      }
+    case Schema.Transform(c, f, _, a, _)                                                 =>
+      readsField(a.foldLeft(c)((s, a) => s.annotate(a)), config).map { reads =>
         reads.map { key =>
           f(key) match {
             case Left(reason) => throw new RuntimeException(s"Failed to read key $a: $reason")
@@ -505,15 +555,15 @@ private[play] trait Formats extends PlayJsonCompat {
           }
         }
       }
-    case Schema.Lazy(inner)                           => readsField(inner())
-    case _                                            => None
+    case Schema.Lazy(inner)                                                              => readsField(inner(), config)
+    case _                                                                               => None
   }
 
   def writesMap[K, V](
     ks: Schema[K],
     vs: Schema[V],
-    config: PlayJsonCodec.Config,
-  ): Writes[Map[K, V]] = writesField(ks) match {
+    config: PlayJsonCodec.Configuration,
+  ): Writes[Map[K, V]] = writesField(ks, config) match {
     case Some(keyWrites) =>
       implicit val kw: KeyWrites[K] = keyWrites
       implicit val vw: Writes[V]    = writesSchema(vs, config)
@@ -523,21 +573,23 @@ private[play] trait Formats extends PlayJsonCompat {
         .contramap(Chunk.fromIterable)
   }
 
-  def readsMap[K, V](ks: Schema[K], vs: Schema[V]): Reads[Map[K, V]] = readsField(ks) match {
-    case Some(keyReads) =>
-      implicit val kr: KeyReads[K] = keyReads
-      implicit val vr: Reads[V]    = readsSchema(vs)
-      implicitly[Reads[Map[K, V]]]
-    case None           =>
-      readsChunk(Reads.Tuple2R(readsSchema(ks), readsSchema(vs))).map(_.toMap)
-  }
+  def readsMap[K, V](ks: Schema[K], vs: Schema[V], config: PlayJsonCodec.Configuration): Reads[Map[K, V]] =
+    readsField(ks, config) match {
+      case Some(keyReads) =>
+        implicit val kr: KeyReads[K] = keyReads
+        implicit val vr: Reads[V]    = readsSchema(vs, config)
+        implicitly[Reads[Map[K, V]]]
+      case None           =>
+        readsChunk(Reads.Tuple2R(readsSchema(ks, config), readsSchema(vs, config))).map(_.toMap)
+    }
 
+  @inline
   private def isEmptyJsonArray(json: JsValue): Boolean = json match {
     case JsArray(arr) => arr.isEmpty
     case _            => false
   }
 
-  def writesDynamic(schema: Schema.Dynamic, config: PlayJsonCodec.Config): Writes[DynamicValue] = {
+  def writesDynamic(schema: Schema.Dynamic, config: PlayJsonCodec.Configuration): Writes[DynamicValue] = {
     if (schema.annotations.exists(_.isInstanceOf[directDynamicMapping])) {
       new Writes[DynamicValue] { writes =>
         def writes(a: DynamicValue): JsValue = a match {
@@ -545,8 +597,8 @@ private[play] trait Formats extends PlayJsonCompat {
             val fields = values.map { case (k, v) =>
               val json = writes.writes(v)
               if (
-                (!config.ignoreEmptyCollections || !isEmptyJsonArray(json)) &&
-                (!config.ignoreNullValues || json != JsNull)
+                (config.explicitEmptyCollections.encoding || !isEmptyJsonArray(json)) &&
+                (config.explicitNullValues.encoding || json != JsNull)
               ) Some(k -> json)
               else None
             }
@@ -557,8 +609,8 @@ private[play] trait Formats extends PlayJsonCompat {
             val maybeValues = values.map { case v =>
               val json = writes.writes(v)
               if (
-                (!config.ignoreEmptyCollections || !isEmptyJsonArray(json)) &&
-                (!config.ignoreNullValues || json != JsNull)
+                (config.explicitEmptyCollections.encoding || !isEmptyJsonArray(json)) &&
+                (config.explicitNullValues.encoding || json != JsNull)
               ) Some(json)
               else None
             }
@@ -569,8 +621,8 @@ private[play] trait Formats extends PlayJsonCompat {
             val maybeValues = Chunk.fromIterable(values).map { case v =>
               val json = writes.writes(v)
               if (
-                (!config.ignoreEmptyCollections || !isEmptyJsonArray(json)) &&
-                (!config.ignoreNullValues || json != JsNull)
+                (config.explicitEmptyCollections.encoding || !isEmptyJsonArray(json)) &&
+                (config.explicitNullValues.encoding || json != JsNull)
               ) Some(json)
               else None
             }
@@ -596,16 +648,16 @@ private[play] trait Formats extends PlayJsonCompat {
     } else writesSchema(DynamicValue.schema, config)
   }
 
-  def readsDynamic(schema: Schema.Dynamic): Reads[DynamicValue] = {
+  def readsDynamic(schema: Schema.Dynamic, config: PlayJsonCodec.Configuration): Reads[DynamicValue] = {
     val directMapping = schema.annotations.exists(_.isInstanceOf[directDynamicMapping])
     if (directMapping) Reads.JsValueReads.map(zio.schema.codec.play.json.fromJsValue)
-    else readsSchema(DynamicValue.schema)
+    else readsSchema(DynamicValue.schema, config)
   }
 
   def writesTransform[A, B](
     schema: Schema[A],
     g: B => Either[String, A],
-    config: PlayJsonCodec.Config,
+    config: PlayJsonCodec.Configuration,
     discriminatorTuple: DiscriminatorTuple,
   ): Writes[B] = new Writes[B] {
     def writes(b: B): JsValue = g(b) match {
@@ -614,15 +666,32 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  def writesEnum[Z](schema: Schema.Enum[Z], config: PlayJsonCodec.Config): Writes[Z] = {
+  private def format(caseName: String, config: PlayJsonCodec.Configuration): String =
+    if (config.discriminatorFormat == NameFormat.Identity) caseName
+    else config.discriminatorFormat(caseName)
+
+  protected def caseNameAliases[Z](parentSchema: Schema.Enum[Z], config: PlayJsonCodec.Configuration) = {
+    val caseNameAliases = new mutable.HashMap[String, Schema.Case[Z, Any]]
+    parentSchema.cases.foreach { case_ =>
+      val schema = case_.asInstanceOf[Schema.Case[Z, Any]]
+      caseNameAliases.put(format(case_.caseName, config), schema)
+      case_.caseNameAliases.foreach(a => caseNameAliases.put(a, schema))
+    }
+    caseNameAliases
+  }
+
+  private def caseMap[Z](schema: Schema.Enum[Z], config: PlayJsonCodec.Configuration): Map[Z, String] =
+    schema.nonTransientCases
+      .map(case_ =>
+        case_.schema.asInstanceOf[Schema.CaseClass0[Z]].defaultConstruct() ->
+          format(case_.caseName, config),
+      )
+      .toMap
+
+  def writesEnum[Z](schema: Schema.Enum[Z], config: PlayJsonCodec.Configuration): Writes[Z] = {
     // if all cases are CaseClass0, encode as a String
     if (schema.annotations.exists(_.isInstanceOf[simpleEnum])) {
-      Writes.StringWrites.contramap[Z] {
-        schema.nonTransientCases.map { case_ =>
-          case_.schema.asInstanceOf[Schema.CaseClass0[Z]].defaultConstruct() ->
-            case_.caseName
-        }.toMap
-      }
+      Writes.StringWrites.contramap[Z](caseMap(schema, config))
     } else {
       new Writes[Z] {
 
@@ -630,8 +699,9 @@ private[play] trait Formats extends PlayJsonCompat {
           if (schema.noDiscriminator) None
           else schema.annotations.collectFirst { case d: discriminatorName => d.tag }
         val cases                = schema.nonTransientCases.toArray
+        val names                = cases.map { case_ => format(case_.caseName, config) }
         val writers              = cases.map { case_ =>
-          val discriminatorTuple = discriminatorName.map(_ -> case_.caseName)
+          val discriminatorTuple = discriminatorName.map(_ -> format(case_.caseName, config))
           writesSchema(case_.schema.asInstanceOf[Schema[Any]], config, discriminatorTuple)
         }
         val doJsonObjectWrapping = discriminatorName.isEmpty && !schema.noDiscriminator
@@ -643,7 +713,7 @@ private[play] trait Formats extends PlayJsonCompat {
             if (case_.isCase(value)) {
               val result = writers(i).writes(case_.deconstruct(value))
               return {
-                if (doJsonObjectWrapping) Json.obj(case_.caseName -> result)
+                if (doJsonObjectWrapping) Json.obj(names(i) -> result)
                 else result
               }
             }
@@ -655,20 +725,17 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  def readsEnum[Z](parentSchema: Schema.Enum[Z]): Reads[Z] = {
-    val caseNameAliases = new mutable.HashMap[String, Schema.Case[Z, Any]]
-    parentSchema.cases.foreach { case_ =>
-      val schema = case_.asInstanceOf[Schema.Case[Z, Any]]
-      caseNameAliases.put(schema.caseName, schema)
-      schema.caseNameAliases.foreach { alias => caseNameAliases.put(alias, schema) }
-    }
+  def readsEnum[Z](parentSchema: Schema.Enum[Z], config: PlayJsonCodec.Configuration): Reads[Z] = {
+
+    val caseNameAliases: mutable.HashMap[String, Schema.Case[Z, Any]] =
+      Formats.caseNameAliases(parentSchema, config)
 
     if (parentSchema.cases.forall(_.schema.isInstanceOf[Schema.CaseClass0[_]])) { // if all cases are CaseClass0, decode as String
       new Reads[Z] {
 
         val cases = new util.HashMap[String, Z](caseNameAliases.size << 1)
         caseNameAliases.foreach { case (name, case_) =>
-          cases.put(name, case_.schema.asInstanceOf[Schema.CaseClass0[Z]].defaultConstruct())
+          cases.put(format(name, config), case_.schema.asInstanceOf[Schema.CaseClass0[Z]].defaultConstruct())
         }
 
         def reads(json: JsValue): JsResult[Z] = {
@@ -685,7 +752,7 @@ private[play] trait Formats extends PlayJsonCompat {
     } else if (parentSchema.annotations.exists(_.isInstanceOf[noDiscriminator])) {
       new Reads[Z] {
 
-        val readers = parentSchema.cases.toArray.map(c => readsSchema(c.schema))
+        val readers = parentSchema.cases.toArray.map(c => readsSchema(c.schema, config))
 
         def reads(json: JsValue): JsResult[Z] = {
           val it = readers.iterator
@@ -700,14 +767,14 @@ private[play] trait Formats extends PlayJsonCompat {
         }
       }
     } else {
-      val discriminator = parentSchema.annotations.collectFirst { case d: discriminatorName => d.tag }
+      val discriminator = parentSchema.discriminatorName.orElse(config.discriminatorName)
       discriminator match {
         case None       =>
           new Reads[Z] {
 
             val cases = new util.HashMap[String, Reads[Any]](caseNameAliases.size << 1)
             caseNameAliases.foreach { case (name, case_) =>
-              cases.put(name, readsSchema(case_.schema, discriminator))
+              cases.put(format(name, config), readsSchema(case_.schema, config, discriminator))
             }
 
             def reads(json: JsValue): JsResult[Z] = json match {
@@ -730,7 +797,7 @@ private[play] trait Formats extends PlayJsonCompat {
 
             val cases = new util.HashMap[String, Reads[Any]](caseNameAliases.size << 1)
             caseNameAliases.foreach { case (name, case_) =>
-              cases.put(name, readsSchema(case_.schema, discriminator))
+              cases.put(format(name, config), readsSchema(case_.schema, config, discriminator))
             }
 
             def reads(json: JsValue): JsResult[Z] = json match {
@@ -760,53 +827,59 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  def readsFallback[A, B](schema: Schema.Fallback[A, B]): Reads[Fallback[A, B]] = new Reads[Fallback[A, B]] {
+  def readsFallback[A, B](schema: Schema.Fallback[A, B], config: PlayJsonCodec.Configuration): Reads[Fallback[A, B]] =
+    new Reads[Fallback[A, B]] {
 
-    val wl = readsSchema(schema.left)
-    val wr = readsSchema(schema.right)
+      val wl = readsSchema(schema.left, config)
+      val wr = readsSchema(schema.right, config)
 
-    def reads(json: JsValue): JsResult[Fallback[A, B]] = json match {
-      case JsArray(arr) =>
-        arr.toList match {
-          case Nil                  => JsError(JsPath \ 0, "error.path.missing")
-          case left :: right :: Nil =>
-            wl.reads(left) match {
-              case JsError(_)          => wr.reads(right).map(Fallback.Right(_))
-              case JsSuccess(first, _) =>
-                if (!schema.fullDecode) JsSuccess(Fallback.Left(first))
-                else
-                  wr.reads(right) match {
-                    case JsError(_)           => JsSuccess(Fallback.Left(first))
-                    case JsSuccess(second, _) => JsSuccess(Fallback.Both(first, second))
-                  }
-            }
-          case xs                   =>
-            val errors = new mutable.ListBuffer[(JsPath, Seq[JsonValidationError])]
-            val i      = 2
-            while (i < xs.size) {
-              errors += JsPath \ i -> Seq(JsonValidationError("error.path.extra"))
-            }
-            JsError(errors.result())
-        }
-      case _            =>
-        wl.reads(json).map(Fallback.Left(_)) match {
-          case result: JsSuccess[_] => result
-          case JsError(leftErrors)  =>
-            wr.reads(json).map(Fallback.Right(_)) match {
-              case result: JsSuccess[_] => result
-              case JsError(rightErrors) => JsError(leftErrors ++ rightErrors)
-            }
-        }
+      def reads(json: JsValue): JsResult[Fallback[A, B]] = json match {
+        case JsArray(arr) =>
+          arr.toList match {
+            case Nil                  => JsError(JsPath \ 0, "error.path.missing")
+            case left :: right :: Nil =>
+              wl.reads(left) match {
+                case JsError(_)          => wr.reads(right).map(Fallback.Right(_))
+                case JsSuccess(first, _) =>
+                  if (!schema.fullDecode) JsSuccess(Fallback.Left(first))
+                  else
+                    wr.reads(right) match {
+                      case JsError(_)           => JsSuccess(Fallback.Left(first))
+                      case JsSuccess(second, _) => JsSuccess(Fallback.Both(first, second))
+                    }
+              }
+            case xs                   =>
+              val errors = new mutable.ListBuffer[(JsPath, Seq[JsonValidationError])]
+              val i      = 2
+              while (i < xs.size) {
+                errors += JsPath \ i -> Seq(JsonValidationError("error.path.extra"))
+              }
+              JsError(errors.result())
+          }
+        case _            =>
+          wl.reads(json).map(Fallback.Left(_)) match {
+            case result: JsSuccess[_] => result
+            case JsError(leftErrors)  =>
+              wr.reads(json).map(Fallback.Right(_)) match {
+                case result: JsSuccess[_] => result
+                case JsError(rightErrors) => JsError(leftErrors ++ rightErrors)
+              }
+          }
+      }
     }
-  }
 
   private def writesRecord[Z](
     schema: Schema.GenericRecord,
-    config: PlayJsonCodec.Config,
+    config: PlayJsonCodec.Configuration,
     discriminatorTuple: DiscriminatorTuple,
   ): Writes[ListMap[String, _]] = {
 
     val nonTransientFields = schema.nonTransientFields.toArray
+    val fieldNames         = nonTransientFields.map { field =>
+      if (config.fieldNameFormat == NameFormat.Identity) field.fieldName
+      else if (field.fieldName == field.name) config.fieldNameFormat(field.fieldName)
+      else field.fieldName
+    }
     val discriminator      = discriminatorTuple.map { case (tag, name) =>
       tag -> Writes.StringWrites.writes(name)
     }
@@ -835,8 +908,8 @@ private[play] trait Formats extends PlayJsonCompat {
           var i       = 0
           while (i < nonTransientFields.length) {
             val field      = nonTransientFields(i)
-            val fieldName  = field.fieldName
-            val fieldValue = value(fieldName)
+            val fieldName  = fieldNames(i)
+            val fieldValue = value(field.fieldName)
             if (!isEmptyOptionalValue(field, fieldValue, config))
               builder += fieldName -> writers(i).writes(fieldValue)
             i += 1
@@ -847,26 +920,41 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  private def isEmptyOptionalValue(schema: Schema.Field[_, _], value: Any, config: PlayJsonCodec.Config) = {
-    (config.ignoreEmptyCollections || schema.optional) && (value match {
-      case None                  => true
-      case iterable: Iterable[_] => iterable.isEmpty
-      case _                     => false
+  private def isEmptyOptionalValue(schema: Schema.Field[_, _], value: Any, config: PlayJsonCodec.Configuration) = {
+    (!config.explicitEmptyCollections.encoding || schema.optional) && (value match {
+      case None            => true
+      case it: Iterable[_] => it.isEmpty
+      case _               => false
     })
   }
 
   def readsRecord[Z](
     schema: Schema.GenericRecord,
+    config: PlayJsonCodec.Configuration,
     discriminator: Option[String],
   ): Reads[ListMap[String, Any]] = new Reads[ListMap[String, Any]] {
 
-    val fields                 = schema.fields.toArray
-    val fieldWithReaders       = new util.HashMap[String, (String, Reads[Any])](schema.fields.size << 1)
+    val fields           = schema.fields.toArray
+    val fieldNames       = new Array[String](fields.length)
+    val fieldWithReaders = new util.HashMap[String, (String, Reads[Any])](schema.fields.size << 1)
+
+    var i = 0
     schema.fields.foreach { field =>
-      val reads = readsSchema(field.schema).asInstanceOf[Reads[Any]]
-      field.nameAndAliases.foreach(fieldWithReaders.put(_, (field.fieldName, reads)))
+      val name  =
+        if (config.fieldNameFormat == NameFormat.Identity) field.fieldName
+        else if (field.fieldName == field.name) config.fieldNameFormat(field.fieldName)
+        else field.fieldName
+      fieldNames(i) = name
+      val reads = readsSchema(field.schema, config).asInstanceOf[Reads[Any]]
+      (field.nameAndAliases - field.fieldName + name).foreach { alias =>
+        fieldWithReaders.put(alias, (name, reads))
+      }
+      i += 1
     }
-    val rejectAdditionalFields = schema.annotations.exists(_.isInstanceOf[rejectExtraFields])
+
+    val explicitEmptyCollections = config.explicitEmptyCollections.decoding
+    val explicitNulls            = config.explicitNullValues.decoding
+    val rejectExtraFields        = schema.rejectExtraFields || config.rejectExtraFields
 
     def reads(json: JsValue): JsResult[ListMap[String, Any]] = json match {
       case JsObject(underlying) =>
@@ -878,14 +966,14 @@ private[play] trait Formats extends PlayJsonCompat {
           if (fieldWithReads != null) {
             val (field, reads) = fieldWithReads
             reads.reads(value) match {
-              case error: JsError      => errors ++= error.repath(JsPath \ key).asInstanceOf[JsError].errors
+              case error: JsError      => errors ++= error.repath(JsPath \ field).asInstanceOf[JsError].errors
               case JsSuccess(value, _) =>
                 val prev = map.put(field, value)
                 if (prev != null)
                   errors += JsPath \ field -> Seq(JsonValidationError("error.path.result.multiple"))
             }
           } else {
-            if (rejectAdditionalFields && !discriminator.contains(key))
+            if (rejectExtraFields && !discriminator.contains(key))
               errors += JsPath \ key -> Seq(JsonValidationError("error.path.extra"))
           }
         }
@@ -893,7 +981,7 @@ private[play] trait Formats extends PlayJsonCompat {
         var i = 0
         while (i < fields.length) {
           val field = fields(i)
-          val name  = field.fieldName
+          val name  = fieldNames(i)
           if (map.get(name) == null) {
             map.put( // mitigation of a linking error for `map.computeIfAbsent` in Scala.js
               name, {
@@ -906,9 +994,9 @@ private[play] trait Formats extends PlayJsonCompat {
                     case _                 =>
                   }
                   schema match {
-                    case collection: Schema.Collection[_, _] => collection.empty
-                    case _: Schema.Optional[_]               => None
-                    case _                                   =>
+                    case collection: Schema.Collection[_, _] if !explicitEmptyCollections => collection.empty
+                    case _: Schema.Optional[_] if !explicitNulls                          => None
+                    case _                                                                =>
                       errors += JsPath \ name -> Seq(JsonValidationError("error.path.missing"))
                       None
                   }
@@ -935,10 +1023,15 @@ private[play] trait Formats extends PlayJsonCompat {
   }
 
   // scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
-  def writesCaseClass[A](schema: Schema.Record[A], config: PlayJsonCodec.Config, discriminatorTuple: DiscriminatorTuple): Writes[A] = new Writes[A] {
+  def writesCaseClass[A](schema: Schema.Record[A], config: PlayJsonCodec.Configuration, discriminatorTuple: DiscriminatorTuple): Writes[A] = new Writes[A] {
 
     val nonTransientFields = schema.nonTransientFields.map(_.asInstanceOf[Schema.Field[A, Any]]).toArray
-    val fieldWriters       = nonTransientFields.map(s => writesSchema(s.schema, config, discriminatorTuple))
+    val fieldWriters       = nonTransientFields.map { s => writesSchema(s.schema, config) }
+    val fieldNames         = nonTransientFields.map { field =>
+      if (config.fieldNameFormat == NameFormat.Identity) field.fieldName
+      else if (field.fieldName == field.name) config.fieldNameFormat(field.fieldName)
+      else field.fieldName
+    }
     val discriminator      = discriminatorTuple.map { case (tag, name) =>
       tag -> Writes.StringWrites.writes(name)
     }
@@ -954,17 +1047,17 @@ private[play] trait Formats extends PlayJsonCompat {
         val writes = fieldWriters(i)
         val value  = schema.get(a)
         val json   = writes.writes(value)
-        if (!isEmptyOptionalValue(schema, value, config) && (json != JsNull || !config.ignoreNullValues))
-          builder += schema.fieldName -> json
+        if (!isEmptyOptionalValue(schema, value, config) && (json != JsNull || config.explicitNullValues.encoding))
+          builder += fieldNames(i) -> json
         i += 1
       }
       JsObject(builder.result())
     }
   }
 
-  def readsCaseClass0[Z](schema: Schema.CaseClass0[Z], discriminator: Option[String]): Reads[Z] = new Reads[Z] {
+  def readsCaseClass0[Z](schema: Schema.CaseClass0[Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = new Reads[Z] {
 
-    val rejectExtraFields = schema.annotations.collectFirst { case _: rejectExtraFields => () }.isDefined
+    val rejectExtraFields = schema.rejectExtraFields || config.rejectExtraFields
 
     def reads(json: JsValue): JsResult[Z] = json match {
       case JsObject(underlying) =>
@@ -991,86 +1084,86 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  def readsCaseClass1[A, Z](schema: Schema.CaseClass1[A, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass1[A, Z](schema: Schema.CaseClass1[A, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.defaultConstruct(buffer(0).asInstanceOf[A])
     }
   }
 
-  def readsCaseClass2[A1, A2, Z](schema: Schema.CaseClass2[A1, A2, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass2[A1, A2, Z](schema: Schema.CaseClass2[A1, A2, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(buffer(0).asInstanceOf[A1], buffer(1).asInstanceOf[A2])
     }
   }
 
-  def readsCaseClass3[A1, A2, A3, Z](schema: Schema.CaseClass3[A1, A2, A3, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass3[A1, A2, A3, Z](schema: Schema.CaseClass3[A1, A2, A3, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(buffer(0).asInstanceOf[A1], buffer(1).asInstanceOf[A2], buffer(2).asInstanceOf[A3])
     }
   }
 
-  def readsCaseClass4[A1, A2, A3, A4, Z](schema: Schema.CaseClass4[A1, A2, A3, A4, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass4[A1, A2, A3, A4, Z](schema: Schema.CaseClass4[A1, A2, A3, A4, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(buffer(0).asInstanceOf[A1], buffer(1).asInstanceOf[A2], buffer(2).asInstanceOf[A3], buffer(3).asInstanceOf[A4])
     }
   }
 
-  def readsCaseClass5[A1, A2, A3, A4, A5, Z](schema: Schema.CaseClass5[A1, A2, A3, A4, A5, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass5[A1, A2, A3, A4, A5, Z](schema: Schema.CaseClass5[A1, A2, A3, A4, A5, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(buffer(0).asInstanceOf[A1], buffer(1).asInstanceOf[A2], buffer(2).asInstanceOf[A3], buffer(3).asInstanceOf[A4], buffer(4).asInstanceOf[A5])
     }
   }
 
-  def readsCaseClass6[A1, A2, A3, A4, A5, A6, Z](schema: Schema.CaseClass6[A1, A2, A3, A4, A5, A6, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass6[A1, A2, A3, A4, A5, A6, Z](schema: Schema.CaseClass6[A1, A2, A3, A4, A5, A6, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(buffer(0).asInstanceOf[A1], buffer(1).asInstanceOf[A2], buffer(2).asInstanceOf[A3], buffer(3).asInstanceOf[A4], buffer(4).asInstanceOf[A5], buffer(5).asInstanceOf[A6])
     }
   }
 
-  def readsCaseClass7[A1, A2, A3, A4, A5, A6, A7, Z](schema: Schema.CaseClass7[A1, A2, A3, A4, A5, A6, A7, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass7[A1, A2, A3, A4, A5, A6, A7, Z](schema: Schema.CaseClass7[A1, A2, A3, A4, A5, A6, A7, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(buffer(0).asInstanceOf[A1], buffer(1).asInstanceOf[A2], buffer(2).asInstanceOf[A3], buffer(3).asInstanceOf[A4], buffer(4).asInstanceOf[A5], buffer(5).asInstanceOf[A6], buffer(6).asInstanceOf[A7])
     }
   }
 
-  def readsCaseClass8[A1, A2, A3, A4, A5, A6, A7, A8, Z](schema: Schema.CaseClass8[A1, A2, A3, A4, A5, A6, A7, A8, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass8[A1, A2, A3, A4, A5, A6, A7, A8, Z](schema: Schema.CaseClass8[A1, A2, A3, A4, A5, A6, A7, A8, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(buffer(0).asInstanceOf[A1], buffer(1).asInstanceOf[A2], buffer(2).asInstanceOf[A3], buffer(3).asInstanceOf[A4], buffer(4).asInstanceOf[A5], buffer(5).asInstanceOf[A6], buffer(6).asInstanceOf[A7], buffer(7).asInstanceOf[A8])
     }
   }
 
-  def readsCaseClass9[A1, A2, A3, A4, A5, A6, A7, A8, A9, Z](schema: Schema.CaseClass9[A1, A2, A3, A4, A5, A6, A7, A8, A9, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass9[A1, A2, A3, A4, A5, A6, A7, A8, A9, Z](schema: Schema.CaseClass9[A1, A2, A3, A4, A5, A6, A7, A8, A9, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(buffer(0).asInstanceOf[A1], buffer(1).asInstanceOf[A2], buffer(2).asInstanceOf[A3], buffer(3).asInstanceOf[A4], buffer(4).asInstanceOf[A5], buffer(5).asInstanceOf[A6], buffer(6).asInstanceOf[A7], buffer(7).asInstanceOf[A8], buffer(8).asInstanceOf[A9])
     }
   }
 
-  def readsCaseClass10[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, Z](schema: Schema.CaseClass10[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass10[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, Z](schema: Schema.CaseClass10[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(buffer(0).asInstanceOf[A1], buffer(1).asInstanceOf[A2], buffer(2).asInstanceOf[A3], buffer(3).asInstanceOf[A4], buffer(4).asInstanceOf[A5], buffer(5).asInstanceOf[A6], buffer(6).asInstanceOf[A7], buffer(7).asInstanceOf[A8], buffer(8).asInstanceOf[A9], buffer(9).asInstanceOf[A10])
     }
   }
 
-  def readsCaseClass11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, Z](schema: Schema.CaseClass11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, Z](schema: Schema.CaseClass11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(buffer(0).asInstanceOf[A1], buffer(1).asInstanceOf[A2], buffer(2).asInstanceOf[A3], buffer(3).asInstanceOf[A4], buffer(4).asInstanceOf[A5], buffer(5).asInstanceOf[A6], buffer(6).asInstanceOf[A7], buffer(7).asInstanceOf[A8], buffer(8).asInstanceOf[A9], buffer(9).asInstanceOf[A10], buffer(10).asInstanceOf[A11])
     }
   }
 
-  def readsCaseClass12[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, Z](schema: Schema.CaseClass12[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass12[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, Z](schema: Schema.CaseClass12[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(buffer(0).asInstanceOf[A1], buffer(1).asInstanceOf[A2], buffer(2).asInstanceOf[A3], buffer(3).asInstanceOf[A4], buffer(4).asInstanceOf[A5], buffer(5).asInstanceOf[A6], buffer(6).asInstanceOf[A7], buffer(7).asInstanceOf[A8], buffer(8).asInstanceOf[A9], buffer(9).asInstanceOf[A10], buffer(10).asInstanceOf[A11], buffer(11).asInstanceOf[A12])
     }
   }
 
-  def readsCaseClass13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, Z](schema: Schema.CaseClass13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, Z](schema: Schema.CaseClass13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(buffer(0).asInstanceOf[A1], buffer(1).asInstanceOf[A2], buffer(2).asInstanceOf[A3], buffer(3).asInstanceOf[A4], buffer(4).asInstanceOf[A5], buffer(5).asInstanceOf[A6], buffer(6).asInstanceOf[A7], buffer(7).asInstanceOf[A8], buffer(8).asInstanceOf[A9], buffer(9).asInstanceOf[A10], buffer(10).asInstanceOf[A11], buffer(11).asInstanceOf[A12], buffer(12).asInstanceOf[A13])
     }
   }
 
-  def readsCaseClass14[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, Z](schema: Schema.CaseClass14[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass14[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, Z](schema: Schema.CaseClass14[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(
         buffer(0).asInstanceOf[A1],
         buffer(1).asInstanceOf[A2],
@@ -1090,8 +1183,8 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  def readsCaseClass15[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, Z](schema: Schema.CaseClass15[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass15[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, Z](schema: Schema.CaseClass15[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(
         buffer(0).asInstanceOf[A1],
         buffer(1).asInstanceOf[A2],
@@ -1112,8 +1205,8 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  def readsCaseClass16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, Z](schema: Schema.CaseClass16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, Z](schema: Schema.CaseClass16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(
         buffer(0).asInstanceOf[A1],
         buffer(1).asInstanceOf[A2],
@@ -1135,8 +1228,8 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  def readsCaseClass17[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, Z](schema: Schema.CaseClass17[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass17[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, Z](schema: Schema.CaseClass17[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(
         buffer(0).asInstanceOf[A1],
         buffer(1).asInstanceOf[A2],
@@ -1159,8 +1252,8 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  def readsCaseClass18[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, Z](schema: Schema.CaseClass18[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass18[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, Z](schema: Schema.CaseClass18[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(
         buffer(0).asInstanceOf[A1],
         buffer(1).asInstanceOf[A2],
@@ -1184,8 +1277,8 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  def readsCaseClass19[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, Z](schema: Schema.CaseClass19[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass19[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, Z](schema: Schema.CaseClass19[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(
         buffer(0).asInstanceOf[A1],
         buffer(1).asInstanceOf[A2],
@@ -1210,8 +1303,8 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  def readsCaseClass20[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, Z](schema: Schema.CaseClass20[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass20[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, Z](schema: Schema.CaseClass20[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(
         buffer(0).asInstanceOf[A1],
         buffer(1).asInstanceOf[A2],
@@ -1237,8 +1330,8 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  def readsCaseClass21[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, Z](schema: Schema.CaseClass21[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass21[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, Z](schema: Schema.CaseClass21[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(
         buffer(0).asInstanceOf[A1],
         buffer(1).asInstanceOf[A2],
@@ -1265,8 +1358,8 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  def readsCaseClass22[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, Z](schema: Schema.CaseClass22[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, Z], discriminator: Option[String]): Reads[Z] = {
-    readsFields(schema, discriminator).map { (buffer: Array[Any]) =>
+  def readsCaseClass22[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, Z](schema: Schema.CaseClass22[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Z] = {
+    readsFields(schema, config, discriminator).map { (buffer: Array[Any]) =>
       schema.construct(
         buffer(0).asInstanceOf[A1],
         buffer(1).asInstanceOf[A2],
@@ -1294,34 +1387,32 @@ private[play] trait Formats extends PlayJsonCompat {
     }
   }
 
-  private def readsFields[Z](schema: Schema.Record[Z], discriminator: Option[String]): Reads[Array[Any]] = new Reads[Array[Any]] {
+  private def readsFields[Z](schema: Schema.Record[Z], config: PlayJsonCodec.Configuration, discriminator: Option[String]): Reads[Array[Any]] = new Reads[Array[Any]] {
 
     val len     = schema.fields.length
     val fields  = new Array[Schema.Field[Z, _]](len)
     val readers = new Array[Reads[_]](len)
-    val names   = Array.newBuilder[String]
+    val names   = new Array[String](len)
     val aliases = new util.HashMap[String, Int](len << 1)
 
     var i = 0
     schema.fields.foreach { field =>
       fields(i) = field
-      readers(i) = readsSchema(field.schema)
-      val name = field.fieldName
-      names += name
-      aliases.put(name, i)
-      field.annotations.foreach {
-        case fna: fieldNameAliases => fna.aliases.foreach(a => aliases.put(a, i))
-        case _                     =>
-      }
+      readers(i) = readsSchema(field.schema, config)
+      val name =
+        if (config.fieldNameFormat == NameFormat.Identity) field.fieldName
+        else if (field.fieldName == field.name) config.fieldNameFormat(field.fieldName)
+        else field.fieldName
+      names(i) = name
+      (field.nameAndAliases - field.fieldName + name).foreach { alias => aliases.put(alias, i) }
       i += 1
     }
 
-    discriminator.foreach { name =>
-      names += name
-      aliases.put(name, len)
-    }
+    discriminator.foreach { name => aliases.put(name, len) }
 
-    val rejectExtraFields = schema.annotations.exists(_.isInstanceOf[rejectExtraFields])
+    val explicitEmptyCollections = config.explicitEmptyCollections.decoding
+    val explicitNulls            = config.explicitNullValues.decoding
+    val rejectExtraFields        = schema.rejectExtraFields || config.rejectExtraFields
 
     def reads(json: JsValue): JsResult[Array[Any]] = json match {
       case JsObject(underlying) =>
@@ -1334,10 +1425,11 @@ private[play] trait Formats extends PlayJsonCompat {
               if (rejectExtraFields) errors += JsPath \ key -> Seq(JsonValidationError("error.path.extra"))
             case i if i == len => // check discriminator?
             case i             =>
-              if (buffer(i) != null) errors += JsPath \ key -> Seq(JsonValidationError("error.path.result.multiple"))
+              val field = names(i)
+              if (buffer(i) != null) errors += JsPath \ field -> Seq(JsonValidationError("error.path.result.multiple"))
               else
                 readers(i).reads(value) match {
-                  case error: JsError      => errors ++= error.repath(JsPath \ key).asInstanceOf[JsError].errors
+                  case error: JsError      => errors ++= error.repath(JsPath \ field).asInstanceOf[JsError].errors
                   case JsSuccess(value, _) => buffer(i) = value
                 }
           }
@@ -1355,11 +1447,10 @@ private[play] trait Formats extends PlayJsonCompat {
                 case _                 =>
               }
               schema match {
-                case collection: Schema.Collection[_, _] => buffer(i) = collection.empty
-                case _: Schema.Optional[_]               => buffer(i) = None
-                case _                                   =>
-                  errors += JsPath \ { fields(i).name } -> Seq(JsonValidationError("error.path.missing"))
-                  None
+                case collection: Schema.Collection[_, _] if !explicitEmptyCollections => buffer(i) = collection.empty
+                case _: Schema.Optional[_] if !explicitNulls                          => buffer(i) = None
+                case _                                                                =>
+                  errors += JsPath \ { names(i) } -> Seq(JsonValidationError("error.path.missing"))
               }
             }
           }

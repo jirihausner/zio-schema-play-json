@@ -15,19 +15,19 @@
 In order to use this library, you need to add one of the following lines in your `build.sbt` file:
 
 ```scala
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json"     % "0.1.0" // play-json 3.0.+
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-210" % "0.1.0" // play-json 2.10.+
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-27"  % "0.1.0" // play-json 2.7.+
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-26"  % "0.1.0" // play-json 2.6.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json"     % "0.1.1" // play-json 3.0.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-210" % "0.1.1" // play-json 2.10.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-27"  % "0.1.1" // play-json 2.7.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-26"  % "0.1.1" // play-json 2.6.+
 ```
 
 `zio-schema-play-json` also provides reimplementation of [plokhotnyuk's jsoniter-scala Circe booster](https://github.com/plokhotnyuk/jsoniter-scala/tree/master/jsoniter-scala-circe) that improves parsing and serialization performance and provides faster encoding and decoding of numeric and java time Play JSON formats, found in `zio-schema-play-json-jsoniter` module. In order to use it, you need to add one of the following lines in your `build.sbt` file:
 
 ```scala
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter"     % "0.1.0" // play-json 3.0.+
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-210" % "0.1.0" // play-json 2.10.+
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-27"  % "0.1.0" // play-json 2.7.+
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-26"  % "0.1.0" // play-json 2.6.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter"     % "0.1.1" // play-json 3.0.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-210" % "0.1.1" // play-json 2.10.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-27"  % "0.1.1" // play-json 2.7.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-26"  % "0.1.1" // play-json 2.6.+
 ```
 
 ## Example
@@ -45,21 +45,25 @@ object Person {
 
 // derive Play JSON format from Schema
 import play.api.libs.json.Json
-implicit val codec: Format[Person] = PlayJsonCodec.schemaFormat(Person.schema)
 
-Json.parse("""{"name": "John", "age": 30}""").as[Person] // Person("John", 30)
-Json.stringify(Json.toJson(Person("Adam", 24))) // {"Adam": 24}
+val format: Format[Person] = PlayJsonCodec.schemaFormat(Person.schema)
+
+Json.parse("""{"name": "John", "age": 30}""").as[Person](format) // Person("John", 30)
+Json.stringify(Json.toJson(Person("Adam", 24)))(format) // {"Adam": 24}
 
 // use existing Play JSON format as BinaryCodec
 import zio.schema.codec.play.json.PlayJsonCodec.playJsonBinaryCodec
 
-playJsonBinaryCodec[Person](Json.format[Person]) // zio.schema.codec.BinaryCodec[Person]
+implicit val macroFormat: Format[Person] = Json.format[Person]
+playJsonBinaryCodec[Person] // zio.schema.codec.BinaryCodec[Person]
 
 // derive Play JSON BinaryCodec from schema
 import zio.schema.codec.play.json.PlayJsonCodec.schemaBasedBinaryCodec
 
-schemaBasedBinaryCodec[Person](PlayJsonCodec.Config.default) // zio.schema.codec.BinaryCodec[Person]
+schemaBasedBinaryCodec[Person] // zio.schema.codec.BinaryCodec[Person]
 ```
+
+Where each is also provided as implicit in `zio.schema.codec.play.json.PlayJsonCodec.implicits` package.
 
 ## Acknowledgements
 
