@@ -36,7 +36,7 @@ object BuildHelper {
     val jsoniter              = "2.37.1"
     val scalaJavaTime         = "2.6.0"
     val zio                   = "2.1.21"
-    val zioSchema             = "1.7.3"
+    val zioSchema             = "1.7.5"
     val scalaCollectionCompat = "2.13.0"
   }
 

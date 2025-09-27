@@ -1,11 +1,10 @@
 package zio.schema.codec.play.json.internal
 
-import play.api.libs.json.{JsError, JsPath, JsResult, JsonValidationError}
+import play.api.libs.json.{JsError, JsPath, JsonValidationError}
 import zio.prelude.NonEmptyMap
 import zio.schema._
 import zio.schema.annotation._
 import zio.schema.codec.DecodeError
-import zio.schema.codec.DecodeError.ReadError
 import zio.schema.codec.play.json.PlayJsonCodec.Configuration
 import zio.schema.codec.play.json.internal.Data._
 import zio.stream.ZStream
@@ -29,18 +28,18 @@ private[play] trait ReadsSpecs extends StringUtils {
     config: Configuration = Configuration.default,
     debug: Boolean = false,
   ): ZIO[Any, Nothing, TestResult] = {
-    val exception = JsResult.Exception(error)
-    val stream    = ZStream
+    val decodeError = ErrorHandler.handle(error)
+    val stream      = ZStream
       .fromChunk(charSequenceToByteChunk(json))
       .via(BinaryCodec(schema, config).streamDecoder)
       .runHead
       .exit
       .tap { exit =>
-        val expected = zio.Exit.Failure(Cause.fail(ReadError(Cause.fail(exception), exception.getMessage)))
+        val expected = zio.Exit.Failure(Cause.fail(decodeError))
         (Console.printLine(s"expected: $expected") *>
           Console.printLine(s"got:      $exit")).when(debug).ignore
       }
-    assertZIO(stream)(fails(equalTo(ReadError(Cause.fail(exception), exception.getMessage))))
+    assertZIO(stream)(fails(equalTo(decodeError)))
   }
 
   final protected def assertReadsToOneOfErrors[A](
@@ -50,11 +49,8 @@ private[play] trait ReadsSpecs extends StringUtils {
     config: Configuration = Configuration.default,
     debug: Boolean = false,
   ): ZIO[Any, Nothing, TestResult] = {
-    val exceptions = errors.map { error =>
-      val exception = JsResult.Exception(error)
-      ReadError(Cause.fail(exception), exception.getMessage)
-    }
-    val stream     = ZStream
+    val decodeErrors = errors.map(ErrorHandler.handle)
+    val stream       = ZStream
       .fromChunk(charSequenceToByteChunk(json))
       .via(BinaryCodec(schema, config).streamDecoder)
       .runHead
@@ -63,12 +59,12 @@ private[play] trait ReadsSpecs extends StringUtils {
         ZIO
           .when(debug) {
             Console.print("expected one of:") *>
-              ZIO.foreach(exceptions)(exception => Console.printLine(zio.Exit.Failure(Cause.fail(exception)))) *>
+              ZIO.foreach(decodeErrors)(error => Console.printLine(zio.Exit.Failure(Cause.fail(error)))) *>
               Console.printLine(s"got: $exit")
           }
           .ignore
       }
-    assertZIO(stream)(fails(isOneOf(exceptions)))
+    assertZIO(stream)(fails(isOneOf(decodeErrors)))
   }
 
   final protected def assertReads[A](
