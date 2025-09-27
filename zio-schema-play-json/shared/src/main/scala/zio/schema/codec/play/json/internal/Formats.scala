@@ -696,8 +696,8 @@ private[play] trait Formats extends PlayJsonCompat {
       new Writes[Z] {
 
         val discriminatorName    =
-          if (schema.noDiscriminator) None
-          else schema.annotations.collectFirst { case d: discriminatorName => d.tag }
+          if (schema.noDiscriminator || (config.noDiscriminator && schema.discriminatorName.isEmpty)) None
+          else schema.discriminatorName.orElse(config.discriminatorName)
         val cases                = schema.nonTransientCases.toArray
         val names                = cases.map { case_ => format(case_.caseName, config) }
         val writers              = cases.map { case_ =>

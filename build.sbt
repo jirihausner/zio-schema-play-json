@@ -294,7 +294,6 @@ lazy val zioSchemaPlayJsonJsoniter210 =
       Test / testOptions += Tests.Argument("-ignore-tags", "core"),
     )
     .settings(
-      resolvers += MavenRepository("artifactory-evolution-public", "https://evolution.jfrog.io/artifactory/public"),
       libraryDependencies ++= Seq(
         "com.typesafe.play"                     %% "play-json"               % Versions.playJson210,
         "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"     % Versions.jsoniter,

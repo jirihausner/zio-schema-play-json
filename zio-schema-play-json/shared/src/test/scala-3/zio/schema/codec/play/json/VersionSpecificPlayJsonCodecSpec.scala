@@ -35,12 +35,26 @@ trait VersionSpecificCodecSpec extends ZIOSpecDefault  {
         assertTrue(result.toEither.isRight)
       }
     ),
-    suite("enum with discrimintator")(
+    suite("enum with discriminator")(
       test("default value at last field") {
         val value = BaseB("a", Inner(1))
         val json = """{"type":"BaseB","a":"a","b":{"i":1}}"""
         assert(Json.parse(json).as(using schemaFormat(Schema[Base])))(equalTo(value)) &&
         assert(Json.stringify(schemaFormat(Schema[Base]).writes(value)))(equalTo(json))
+      }
+    ),
+    suite("enum with case name annotations")(
+      test("case name annotations on enum values") {
+        val schema1 = Schema.chunk(DeriveSchema.gen[Foo])
+        val schema2 = Schema.chunk(DeriveSchema.gen[Foo2])
+        val json1 = """["bar","baz","qux","Quux"]"""
+        val json2 = """["Bar","baz","qux"]"""
+        val value1 = Chunk[Foo](Foo.Bar, Foo.Baz, Foo.Qux, Foo.Quux)
+        val value2 = Chunk[Foo2](Foo2.Bar, Foo2.Baz, Foo2.Qux)
+        assert(Json.parse(json1).as(using schemaFormat(schema1)))(equalTo(value1)) &&
+        assert(Json.stringify(schemaFormat(schema1).writes(value1)))(equalTo(json1)) &&
+        assert(Json.parse(json2).as(using schemaFormat(schema2)))(equalTo(value2)) &&
+        assert(Json.stringify(schemaFormat(schema2).writes(value2)))(equalTo(json2))
       }
     ),
     suite("union types")(
@@ -84,6 +98,17 @@ trait VersionSpecificCodecSpec extends ZIOSpecDefault  {
   object WithDefaultValue {
     implicit lazy val schema: Schema[WithDefaultValue] = DeriveSchema.gen[WithDefaultValue]
   }
+
+  enum Foo:
+    @caseName("bar") @caseName("xxx") case Bar
+    @caseName("baz") case Baz
+    @caseName("qux") case Qux
+    case Quux
+
+  enum Foo2:
+    case Bar
+    @caseName("baz") @caseName("xxx") case Baz
+    @caseName("qux") case Qux
 
   enum ErrorGroup1:
     case Err1
