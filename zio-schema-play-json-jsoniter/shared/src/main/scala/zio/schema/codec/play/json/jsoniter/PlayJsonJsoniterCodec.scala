@@ -4,7 +4,7 @@ import com.github.plokhotnyuk.jsoniter_scala.core.{JsonValueCodec, readFromArray
 import play.api.libs.json._
 import zio.schema.Schema
 import zio.schema.codec.play.json.PlayJsonCodec.Configuration
-import zio.schema.codec.play.json.internal.JsonSplitter
+import zio.schema.codec.play.json.internal.{ErrorHandler, JsonSplitter}
 import zio.schema.codec.play.json.jsoniter.internal.Formats
 import zio.schema.codec.{BinaryCodec, DecodeError}
 import zio.stream.ZPipeline
@@ -59,7 +59,7 @@ object PlayJsonJsoniterCodec {
     override def decode(whole: Chunk[Byte]): Either[DecodeError, A] = {
       try {
         reads.reads(readFromArray(whole.toArray)(jsValueCodec)) match {
-          case error: JsError      => throw JsResult.Exception(error)
+          case error: JsError      => Left(ErrorHandler.handle(error))
           case JsSuccess(value, _) => Right(value)
         }
       } catch {
@@ -76,7 +76,7 @@ object PlayJsonJsoniterCodec {
         ZPipeline.mapEitherChunked { (json: String) =>
           try {
             reads.reads(readFromString(json)(jsValueCodec)) match {
-              case error: JsError      => throw JsResult.Exception(error)
+              case error: JsError      => Left(ErrorHandler.handle(error))
               case JsSuccess(value, _) => Right(value)
             }
           } catch {
@@ -115,7 +115,7 @@ object PlayJsonJsoniterCodec {
       override def decode(whole: Chunk[Byte]): Either[DecodeError, A] = {
         try {
           r.reads(readFromArray(whole.toArray)(jsValueCodec)) match {
-            case error: JsError      => throw JsResult.Exception(error)
+            case error: JsError      => Left(ErrorHandler.handle(error))
             case JsSuccess(value, _) => Right(value)
           }
         } catch {
@@ -132,7 +132,7 @@ object PlayJsonJsoniterCodec {
           ZPipeline.mapEitherChunked { (json: String) =>
             try {
               r.reads(readFromString(json)(jsValueCodec)) match {
-                case error: JsError      => throw JsResult.Exception(error)
+                case error: JsError      => Left(ErrorHandler.handle(error))
                 case JsSuccess(value, _) => Right(value)
               }
             } catch {
