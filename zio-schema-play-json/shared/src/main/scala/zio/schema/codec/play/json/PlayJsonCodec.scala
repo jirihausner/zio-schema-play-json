@@ -1,7 +1,7 @@
 package zio.schema.codec.play.json
 
 import play.api.libs.json._
-import zio.schema.codec.play.json.internal.{Formats, JsonSplitter}
+import zio.schema.codec.play.json.internal.{ErrorHandler, Formats, JsonSplitter}
 import zio.schema.codec.{BinaryCodec, DecodeError}
 import zio.schema.{NameFormat, Schema}
 import zio.stream.ZPipeline
@@ -139,7 +139,7 @@ object PlayJsonCodec {
       override def decode(whole: Chunk[Byte]): Either[DecodeError, A] = {
         try {
           reads.reads(Json.parse(whole.toArray)) match {
-            case error: JsError      => throw JsResult.Exception(error)
+            case error: JsError      => Left(ErrorHandler.handle(error))
             case JsSuccess(value, _) => Right(value)
           }
         } catch {
@@ -156,7 +156,7 @@ object PlayJsonCodec {
           ZPipeline.mapEitherChunked { (json: String) =>
             try {
               reads.reads(Json.parse(json)) match {
-                case error: JsError      => throw JsResult.Exception(error)
+                case error: JsError      => Left(ErrorHandler.handle(error))
                 case JsSuccess(value, _) => Right(value)
               }
             } catch {
@@ -195,7 +195,7 @@ object PlayJsonCodec {
       override def decode(whole: Chunk[Byte]): Either[DecodeError, A] = {
         try {
           r.reads(Json.parse(whole.toArray)) match {
-            case error: JsError      => throw JsResult.Exception(error)
+            case error: JsError      => Left(ErrorHandler.handle(error))
             case JsSuccess(value, _) => Right(value)
           }
         } catch {
@@ -212,7 +212,7 @@ object PlayJsonCodec {
           ZPipeline.mapEitherChunked { (json: String) =>
             try {
               r.reads(Json.parse(json)) match {
-                case error: JsError      => throw JsResult.Exception(error)
+                case error: JsError      => Left(ErrorHandler.handle(error))
                 case JsSuccess(value, _) => Right(value)
               }
             } catch {
