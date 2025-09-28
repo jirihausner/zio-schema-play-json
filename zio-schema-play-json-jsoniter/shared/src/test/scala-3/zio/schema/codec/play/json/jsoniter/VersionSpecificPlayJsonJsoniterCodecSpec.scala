@@ -81,6 +81,15 @@ trait VersionSpecificCodecSpec extends ZIOSpecDefault  {
         val value = Map("a" -> 1, "b" -> "toto", "c" -> true, "d" -> null)
         assert(Json.parse(json).as(using schemaFormat(schema)))(equalTo(value)) &&
         assert(Json.stringify(schemaFormat(schema).writes(value)))(equalTo(json))
+      },
+    ),
+    suite("IArray")(
+      test("IArray reading and writing") {
+        val schema = Schema.iArray[Int]
+        val json = """[1,2,3]"""
+        val value = IArray(1, 2, 3)
+        assertTrue(Json.parse(json).asOpt(using schemaFormat(schema)).exists(_.sameElements(value))) &&
+        assertTrue(Json.stringify(schemaFormat(schema).writes(value)) == json)
       }
     )
   )
