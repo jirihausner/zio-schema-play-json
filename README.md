@@ -15,19 +15,19 @@
 In order to use this library, you need to add one of the following lines in your `build.sbt` file:
 
 ```scala
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json"     % "0.1.2" // play-json 3.0.+
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-210" % "0.1.2" // play-json 2.10.+
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-27"  % "0.1.2" // play-json 2.7.+
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-26"  % "0.1.2" // play-json 2.6.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json"     % "0.1.3" // play-json 3.0.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-210" % "0.1.3" // play-json 2.10.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-27"  % "0.1.3" // play-json 2.7.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-26"  % "0.1.3" // play-json 2.6.+
 ```
 
 `zio-schema-play-json` also provides reimplementation of [plokhotnyuk's jsoniter-scala Circe booster](https://github.com/plokhotnyuk/jsoniter-scala/tree/master/jsoniter-scala-circe) that improves parsing and serialization performance and provides faster encoding and decoding of numeric and java time Play JSON formats, found in `zio-schema-play-json-jsoniter` module. In order to use it, you need to add one of the following lines in your `build.sbt` file:
 
 ```scala
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter"     % "0.1.2" // play-json 3.0.+
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-210" % "0.1.2" // play-json 2.10.+
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-27"  % "0.1.2" // play-json 2.7.+
-libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-26"  % "0.1.2" // play-json 2.6.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter"     % "0.1.3" // play-json 3.0.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-210" % "0.1.3" // play-json 2.10.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-27"  % "0.1.3" // play-json 2.7.+
+libraryDependencies += "io.github.jirihausner" %% "zio-schema-play-json-jsoniter-26"  % "0.1.3" // play-json 2.6.+
 ```
 
 ## Example
