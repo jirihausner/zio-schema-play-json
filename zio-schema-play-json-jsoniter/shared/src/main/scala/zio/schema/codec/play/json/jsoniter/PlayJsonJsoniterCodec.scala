@@ -1,6 +1,6 @@
 package zio.schema.codec.play.json.jsoniter
 
-import com.github.plokhotnyuk.jsoniter_scala.core.{JsonValueCodec, readFromArray, readFromString, writeToArray}
+import com.github.plokhotnyuk.jsoniter_scala.core.{readFromArray, readFromString, writeToArray, JsonValueCodec}
 import play.api.libs.json._
 import zio.schema.Schema
 import zio.schema.codec.play.json.PlayJsonCodec.Configuration
