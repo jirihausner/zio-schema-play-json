@@ -33,7 +33,7 @@ object BuildHelper {
     val playJson210           = "2.10.7"
     val playJson27            = "2.7.4"
     val playJson26            = "2.6.14"
-    val jsoniter              = "2.38.2"
+    val jsoniter              = "2.38.7"
     val scalaJavaTime         = "2.6.0"
     val zio                   = "2.1.21"
     val zioSchema             = "1.7.5"
