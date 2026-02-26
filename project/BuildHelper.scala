@@ -29,14 +29,14 @@ object BuildHelper {
 
   object Versions {
 
-    val playJson              = "3.0.5"
+    val playJson              = "3.0.6"
     val playJson210           = "2.10.8"
     val playJson27            = "2.7.4"
     val playJson26            = "2.6.14"
     val jsoniter              = "2.38.2"
     val scalaJavaTime         = "2.6.0"
     val zio                   = "2.1.21"
-    val zioSchema             = "1.7.5"
+    val zioSchema             = "1.7.6"
     val scalaCollectionCompat = "2.13.0"
   }
 
@@ -149,7 +149,8 @@ object BuildHelper {
         baseDirectory.value,
       )
     },
-    Test / fork := crossProjectPlatform.value == JVMPlatform, // set fork to `true` on JVM to improve log readability, JS and Native need `false`
+    Test / fork := crossProjectPlatform.value ==
+      JVMPlatform, // set fork to `true` on JVM to improve log readability, JS and Native need `false`
   )
 
   def macroDefinitionSettings = Seq(
