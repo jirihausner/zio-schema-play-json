@@ -921,7 +921,8 @@ private[play] trait Formats extends PlayJsonCompat {
   }
 
   private def isEmptyOptionalValue(schema: Schema.Field[_, _], value: Any, config: PlayJsonCodec.Configuration) = {
-    (!config.explicitEmptyCollections.encoding || schema.optional) && (value match {
+    (!config.explicitEmptyCollections.encoding || schema.optional) &&
+    (value match {
       case None            => true
       case it: Iterable[_] => it.isEmpty
       case _               => false
@@ -1010,10 +1011,11 @@ private[play] trait Formats extends PlayJsonCompat {
           JsError(errors.result().groupBy(_._1).iterator.map { case (k, v) => k -> v.flatMap(_._2) }.toList)
         else {
           val builder =
-            ListMap.newBuilder[String, Any] ++= ({ // to avoid O(n) insert operations
-              import scala.collection.JavaConverters.mapAsScalaMapConverter // use deprecated class for Scala 2.12 compatibility
-              map.asScala
-            }: @scala.annotation.nowarn)
+            ListMap.newBuilder[String, Any] ++=
+              ({ // to avoid O(n) insert operations
+                import scala.collection.JavaConverters.mapAsScalaMapConverter // use deprecated class for Scala 2.12 compatibility
+                map.asScala
+              }: @scala.annotation.nowarn)
 
           JsSuccess(builder.result())
         }
