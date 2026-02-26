@@ -43,8 +43,9 @@ protected[play] object Data {
       second <- Gen.boolean
     } yield Value(first, second)
 
-  def genNonEmptySetOf[R, A](g: Gen[R, A]): Gen[R, NonEmptySet[A]] =
-    (g <*> Gen.setOf(g)).map { case (first, set) => NonEmptySet.fromSet(first, set) }
+  def genNonEmptySetOf[R, A](g: Gen[R, A]): Gen[R, NonEmptySet[A]] = (g <*> Gen.setOf(g)).map { case (first, set) =>
+    NonEmptySet.fromSet(first, set)
+  }
 
   case class SearchRequest(query: String, size: Int, page: Int, nextPage: Option[String])
 
@@ -180,13 +181,15 @@ protected[play] object Data {
 
   val enumSchema: Schema[Any] = Schema.enumeration[Any, CaseSet.Aux[Any]](
     TypeId.Structural,
-    caseOf[String, Any]("string")(_.asInstanceOf[String])(_.asInstanceOf[Any])(_.isInstanceOf[String]) ++ caseOf[
-      Int,
-      Any,
-    ]("int")(_.asInstanceOf[Int])(_.asInstanceOf[Any])(_.isInstanceOf[Int]) ++ caseOf[
-      Boolean,
-      Any,
-    ]("boolean")(_.asInstanceOf[Boolean])(_.asInstanceOf[Any])(_.isInstanceOf[Boolean]),
+    caseOf[String, Any]("string")(_.asInstanceOf[String])(_.asInstanceOf[Any])(_.isInstanceOf[String]) ++
+      caseOf[
+        Int,
+        Any,
+      ]("int")(_.asInstanceOf[Int])(_.asInstanceOf[Any])(_.isInstanceOf[Int]) ++
+      caseOf[
+        Boolean,
+        Any,
+      ]("boolean")(_.asInstanceOf[Boolean])(_.asInstanceOf[Any])(_.isInstanceOf[Boolean]),
   )
 
   sealed trait OneOf
