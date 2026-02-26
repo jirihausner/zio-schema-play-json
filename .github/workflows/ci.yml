@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Restore cache
@@ -41,7 +41,7 @@ jobs:
         platform: ['JVM', 'JS']
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Restore cache
@@ -62,7 +62,7 @@ jobs:
   #   timeout-minutes: 30
   #   steps:
   #     - name: Checkout current branch
-  #       uses: actions/checkout@v4
+  #       uses: actions/checkout@v6
   #       with:
   #         fetch-depth: 300
   #     - name: Fetch tags
@@ -92,7 +92,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request'
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Setup Scala, JDK
