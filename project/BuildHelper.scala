@@ -215,15 +215,16 @@ object BuildHelper {
       mimaPreviousArtifacts         := previousStableVersion.value.map(organization.value %% name.value % _).toSet,
       mimaCheckDirection            := "backward",
       mimaFailOnProblem             := true,
-      testJVM                       := Def.taskDyn {
-        val currentScalaVersion  = (ThisBuild / scalaVersion).value
-        val projectScalaVersions = crossScalaVersions.value
-        if (projectScalaVersions.contains(currentScalaVersion)) Test / test
-        else {
-          Keys.streams.value.log.warn(s"Skipping ${name.value}, Scala $currentScalaVersion is not supported!")
-          Def.task {}
-        }
-      }.value,
+      testJVM                       :=
+        Def.taskDyn {
+          val currentScalaVersion  = (ThisBuild / scalaVersion).value
+          val projectScalaVersions = crossScalaVersions.value
+          if (projectScalaVersions.contains(currentScalaVersion)) Test / test
+          else {
+            Keys.streams.value.log.warn(s"Skipping ${name.value}, Scala $currentScalaVersion is not supported!")
+            Def.task {}
+          }
+        }.value,
       testJS                        := {},
     )
 
